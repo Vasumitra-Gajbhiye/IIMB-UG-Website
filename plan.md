@@ -55,7 +55,7 @@ Package manager: **npm**.
 
 ## Product in one sentence
 
-A public batch site: meet students, open a profile, read reviewed writing — plus a Clerk-gated `/admin` where allowlisted emails edit their card, share resources, and submit BlockNote posts that a super-admin must approve before they go live.
+A public batch site: meet students, open a profile, read reviewed writing, and vote on batch **proposals** — plus a Clerk-gated `/admin` where allowlisted emails edit their card, share resources, manage proposals, and submit BlockNote posts that a super-admin must approve before they go live.
 
 Primary audience: the 80 batchmates, families, and curious outsiders. Secondary: future applicants (link them to official IIMB pages; do not invent admissions policy).
 
@@ -85,6 +85,7 @@ Primary audience: the 80 batchmates, families, and curious outsiders. Secondary:
 | Blog review | Nobody self-publishes. Flow: `DRAFT` → `IN_REVIEW` → `PUBLISHED` or `CHANGES_REQUESTED` |
 | Super-admin publish | Super-admin may approve (and can write posts). Even super-admin posts should go through Save draft → Submit → Approve so the queue stays honest. Shortcut: super-admin **Approve** on their own submission is enough |
 | FAQ | Pretty **dummy** accordion. Placeholder copy. Real answers later |
+| Proposals | Public index `/proposals` + `/proposals/[slug]`. Admins author a proposal (blog-like body), students vote via a form, results list at the bottom with optional **anonymity**. Printable for college review. **Full build = Phase 2.5** (before Directory). Schema/auth details locked in that phase’s kickoff |
 | Landing | Simple and honest. Visual polish is a later pass, not Phase 5 scope |
 | Auth | **Clerk** (`@clerk/nextjs` v7). New Clerk application — do **not** reuse the Ralevel instance |
 | Admin access | Clerk proves identity. **`AllowedEmail` in Postgres** is the source of truth for who may enter `/admin` |
@@ -152,6 +153,8 @@ Do these in **Phase 7**, not before coding Phase 1:
 │   │   ├── sign-in/[[...sign-in]]/page.tsx
 │   │   ├── directory/page.tsx
 │   │   ├── directory/[slug]/page.tsx
+│   │   ├── proposals/page.tsx
+│   │   ├── proposals/[slug]/page.tsx
 │   │   ├── blogs/page.tsx
 │   │   ├── blogs/[slug]/page.tsx
 │   │   ├── faq/page.tsx
@@ -160,6 +163,7 @@ Do these in **Phase 7**, not before coding Phase 1:
 │   │       ├── page.tsx                 # dashboard
 │   │       ├── forbidden/page.tsx       # signed in, not allowlisted
 │   │       ├── profile/page.tsx         # edit own student card + resources
+│   │       ├── proposals/page.tsx       # SUPER_ADMIN proposal roster
 │   │       ├── blogs/page.tsx           # my posts
 │   │       ├── blogs/[id]/edit/page.tsx
 │   │       ├── review/page.tsx          # SUPER_ADMIN queue
@@ -173,6 +177,9 @@ Do these in **Phase 7**, not before coding Phase 1:
 │   │   ├── directory/student-grid.tsx
 │   │   ├── directory/profile-header.tsx
 │   │   ├── directory/resource-list.tsx
+│   │   ├── proposals/proposal-card.tsx
+│   │   ├── proposals/vote-form.tsx
+│   │   ├── proposals/vote-results.tsx
 │   │   ├── blogs/blog-card.tsx
 │   │   ├── blogs/blocknote-editor.tsx   # dynamic, ssr:false
 │   │   ├── blogs/blocknote-viewer.tsx
@@ -190,8 +197,8 @@ Do these in **Phase 7**, not before coding Phase 1:
 │   │   ├── slug.ts
 │   │   ├── auth.ts                      # current user + role from Clerk + Prisma
 │   │   ├── allowlist.ts
-│   │   ├── queries/{students,blogs,faqs,resources}.ts
-│   │   └── actions/{profile,blogs,review,access,students}.ts
+│   │   ├── queries/{students,blogs,faqs,resources,proposals}.ts
+│   │   └── actions/{profile,blogs,review,access,students,proposals}.ts
 │   └── app/api/webhooks/clerk/route.ts
 └── public/
     ├── iimb-logo.png                    # already in repo (sunburst mark)
@@ -513,12 +520,13 @@ export const TRACK_LABEL = {
 export const NAV_LINKS = [
   { href: "/", label: "Home" },
   { href: "/directory", label: "Directory" },
+  { href: "/proposals", label: "Proposals" },
   { href: "/blogs", label: "Writing" },
   { href: "/faq", label: "FAQ" },
 ] as const;
 ```
 
-Public nav label **Writing**; URL stays `/blogs`. No admin link in the public nav. Signed-in allowlisted users see a **Studio** link to `/admin` via Clerk `Show`.
+Public nav labels **Writing** (`/blogs`) and **Proposals** (`/proposals`). No admin link in the public nav. Signed-in allowlisted users see a **Studio** link to `/admin` via Clerk `Show`.
 
 ### Definition of Done — Phase 1
 
@@ -563,13 +571,15 @@ Desktop links from `NAV_LINKS`. Mobile: shadcn `Sheet`. Active state via a small
 | `/` | `src/app/page.tsx` (delete the Next starter) |
 | `/directory` | `directory/page.tsx` |
 | `/directory/[slug]` | `directory/[slug]/page.tsx` |
+| `/proposals` | `proposals/page.tsx` |
+| `/proposals/[slug]` | `proposals/[slug]/page.tsx` |
 | `/blogs` | `blogs/page.tsx` |
 | `/blogs/[slug]` | `blogs/[slug]/page.tsx` |
 | `/faq` | `faq/page.tsx` |
 | `/sign-in/[[...sign-in]]` | Clerk `<SignIn />` |
-| `/admin` and nested | placeholders |
+| `/admin` and nested | placeholders (includes `/admin/proposals`) |
 
-`not-found.tsx` + `loading.tsx` for directory and blogs.
+`not-found.tsx` + `loading.tsx` for directory, blogs, and proposals.
 
 ### 2.5 Assets
 
@@ -585,10 +595,51 @@ Naming: `/avatars/{slug}.jpg`, `/blogs/{slug}-cover.jpg`.
 
 ### Definition of Done — Phase 2
 
-- [ ] All public routes 200 with shared nav/footer
+- [ ] All public routes 200 with shared nav/footer (including `/proposals` placeholders)
 - [ ] Mobile nav works
 - [ ] Starter page gone; maroon primary visible on a Button
 - [ ] Navbar shows `/iimb-logo.png` + **IIMB UG** text, linking to `/`
+
+---
+
+# Phase 2.5 — Proposals (voting)
+
+**Goal:** Admins publish batch proposals; students open them, vote via a form, and see a printable results list (with anonymity options). **Runs after Phase 2 chrome, before Phase 3 Directory.**
+
+Kickoff prompt:
+
+```text
+Implement Phase 2.5 from plan.md. Read plan.md first and follow that phase only.
+Do not start Phase 3 until Phase 2.5's Definition of Done is checked off.
+```
+
+### Intent (locked at a high level; details in kickoff)
+
+1. **Index** `/proposals` — list of proposals authored by admins.
+2. **Detail** `/proposals/[slug]` — blog-like body explaining the proposal; vote form for students; results table/list at the bottom (who voted what), with an **anonymity** feature suitable for printing and submitting to the college.
+3. **Admin** `/admin/proposals` — create / edit / close proposals (exact fields TBD).
+
+### Open questions (resolve in the Phase 2.5 chat before coding schema)
+
+- Who may vote: allowlisted signed-in students only vs public form (name/email) vs hybrid?
+- Vote shape: yes/no, multi-choice, free-text, ranked — what fields does the college need?
+- Anonymity: voter opt-in per ballot, admin toggle per proposal, or always anonymized on the public print view while admins see names?
+- Does voting need Clerk first (Phase 6), or a no-auth form that Phase 6 later hardens?
+- One vote per person — how enforced (student link, email OTP, honor system)?
+- Print: browser print stylesheet vs dedicated `/proposals/[slug]/print` page vs export PDF?
+
+### Phase 2 (done) scope for this feature
+
+Placeholders only: public `/proposals`, `/proposals/[slug]`, `loading.tsx`, nav label **Proposals**, admin `/admin/proposals`. No Prisma models yet.
+
+### Definition of Done — Phase 2.5
+
+- [ ] Schema + migrate for proposals and votes (fields locked in kickoff)
+- [ ] Admin can create/publish a proposal with a body
+- [ ] Students can open a proposal and submit a vote
+- [ ] Results list shows votes with anonymity behavior as locked
+- [ ] Page is printable for college submission
+- [ ] Unlisted / closed proposals behave as specified
 
 ---
 
@@ -943,8 +994,9 @@ Super-admin CRUD for student cards (including `email` and `isListed`). Linking: 
 
 | Phase | Status |
 | --- | --- |
-| 1 Neon & Prisma | Not started |
-| 2 Global UI & skeleton | Not started |
+| 1 Neon & Prisma | Done (see `docs/phase-1-report.md`) |
+| 2 Global UI & skeleton | Done (see `docs/phase-2-report.md`) |
+| 2.5 Proposals (voting) | Not started — placeholders in Phase 2; full feature next |
 | 3 Directory & profiles | Not started |
 | 4 Public blogs (viewer) | Not started |
 | 5 Landing & dummy FAQ | Not started |
