@@ -1,0 +1,127 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Track {
+  DATA_SCIENCE
+  ECONOMICS
+}
+
+enum Role {
+  SUPER_ADMIN
+  STUDENT
+}
+
+enum PostStatus {
+  DRAFT
+  IN_REVIEW
+  CHANGES_REQUESTED
+  PUBLISHED
+}
+
+enum FaqCategory {
+  ADMISSIONS
+  ACADEMICS
+  CAMPUS_LIFE
+}
+
+model User {
+  id        String   @id @default(uuid())
+  clerkId   String   @unique
+  email     String   @unique
+  role      Role     @default(STUDENT)
+  studentId String?  @unique
+  student   Student? @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  reviewedBlogs Blog[] @relation("BlogReviewer")
+}
+
+model AllowedEmail {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  role      Role     @default(STUDENT)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Student {
+  id             String   @id @default(uuid())
+  slug           String   @unique
+  name           String
+  track          Track
+  bio            String?  @db.Text
+  avatarUrl      String?
+  hometown       String?
+  previousSchool String?
+  linkedinUrl    String?
+  githubUrl      String?
+  twitterUrl     String?
+  instagramUrl   String?
+  websiteUrl     String?
+  email          String?  @unique
+  isListed       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  blogs          Blog[]
+  resources      Resource[]
+  user           User?
+
+  @@index([track])
+  @@index([isListed])
+}
+
+model Resource {
+  id          String   @id @default(uuid())
+  title       String
+  url         String
+  description String?
+  sortOrder   Int      @default(0)
+  studentId   String
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([studentId, sortOrder])
+}
+
+model Blog {
+  id            String     @id @default(uuid())
+  slug          String     @unique
+  title         String
+  excerpt       String?
+  content       Json       @default("[]")
+  coverImageUrl String?
+  tags          String[]
+  status        PostStatus @default(DRAFT)
+  reviewNote    String?    @db.Text
+  submittedAt   DateTime?
+  publishedAt   DateTime?
+  reviewedAt    DateTime?
+  authorId      String
+  author        Student    @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  reviewedById  String?
+  reviewedBy    User?      @relation("BlogReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@index([status, publishedAt])
+  @@index([authorId])
+}
+
+model Faq {
+  id        String      @id @default(uuid())
+  question  String
+  answer    String      @db.Text
+  category  FaqCategory
+  sortOrder Int         @default(0)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@index([category, sortOrder])
+}
