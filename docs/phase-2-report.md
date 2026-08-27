@@ -8,7 +8,9 @@
 
 ## Summary
 
-Phase 2 replaced the create-next-app homepage with a light editorial chrome: IIMB maroon primary, Geist + Source Serif 4, shared navbar/footer, and placeholder pages for every public and admin route. Clerk was **not** installed — keys are empty and Phase 2 allows deferring the provider until Phase 6. `/sign-in` exists as a plain placeholder so the URL returns 200.
+Phase 2 replaced the create-next-app homepage with a light editorial chrome: IIMB maroon primary, Geist + Source Serif 4, shared navbar/footer, and placeholder pages for every public and admin route.
+
+**Follow-up (same phase chrome):** Clerk keys were added to `.env`, so Sign in was wired early — `ClerkProvider`, `src/proxy.ts` (protects `/me` only), navbar **Sign in** → grey avatar → `/me`, real `<SignIn />` at `/sign-in`. Nav label **Writing** renamed to **Blogs**. **Gallery** and **Proposals** placeholders + `/me` added. Allowlist / Studio gate / BlockNote remain Phase 6 / 2.5+.
 
 ---
 
@@ -20,18 +22,21 @@ Phase 2 replaced the create-next-app homepage with a light editorial chrome: IIM
 | UI primitives | `src/components/ui/*` — button, card, input, label, textarea, select, badge, avatar, accordion, separator, skeleton, sheet, dropdown-menu, tabs, alert, dialog, sonner |
 | `cn` helper | `src/lib/utils.ts` |
 | Tokens / CSS | `src/app/globals.css` — light-first, `--iimb-maroon`, primary/ring/sidebar-primary mapped to maroon; typography plugin; literal font names in `@theme` |
-| Root layout | `src/app/layout.tsx` — Geist, Geist Mono, Source Serif 4; `metadataBase` + `%s · IIMB UG`; `SiteShell`; **no** `ClerkProvider` |
-| Chrome | `src/components/layout/{site-shell,navbar,nav-links,mobile-nav,footer}.tsx` |
-| Public pages | `/`, `/directory`, `/directory/[slug]`, `/proposals`, `/proposals/[slug]`, `/blogs`, `/blogs/[slug]`, `/faq`, `/sign-in/[[...sign-in]]` |
-| Admin placeholders | `/admin` + forbidden, profile, blogs, blogs/[id]/edit, review, students, access, **proposals** |
-| Loading / 404 | `directory/loading.tsx`, `blogs/loading.tsx`, `proposals/loading.tsx`, `not-found.tsx` |
-| Assets | `public/blogs/.gitkeep`; removed unused starter SVGs (`next.svg`, `vercel.svg`, etc.) |
+| Root layout | `src/app/layout.tsx` — Geist, Geist Mono, Source Serif 4; `metadataBase` + `%s · IIMB UG`; `ClerkProvider` + `SiteShell` |
+| Clerk | `@clerk/nextjs`; `src/proxy.ts` protects `/me`; fallback redirect `/me` |
+| Auth chrome | `src/components/layout/auth-nav.tsx` — Sign in / grey avatar → `/me` |
+| Chrome | `src/components/layout/{site-shell,navbar,nav-links,mobile-nav,footer,auth-nav}.tsx` |
+| Public pages | `/`, `/directory`, `/directory/[slug]`, `/proposals`, `/proposals/[slug]`, `/blogs`, `/blogs/[slug]`, `/gallery`, `/faq`, `/me`, `/sign-in/[[...sign-in]]` |
+| Admin placeholders | `/admin` + forbidden, profile, blogs, blogs/[id]/edit, review, students, access, proposals |
+| Loading / 404 | `directory/loading.tsx`, `blogs/loading.tsx`, `proposals/loading.tsx`, `gallery/loading.tsx`, `not-found.tsx` |
+| Assets | `public/blogs/.gitkeep`; removed unused starter SVGs |
 | Logo | Navbar + footer use `/iimb-logo.png` at small height; wordmark **IIMB UG** |
 
 ### Packages installed
 
 - shadcn CLI dependencies (Radix unified `radix-ui`, CVA, `clsx`, `tailwind-merge`, `lucide-react`, `sonner`, `tw-animate-css`, `class-variance-authority`, `shadcn` package)
 - `@tailwindcss/typography`
+- `@clerk/nextjs` (wired early once keys existed in `.env`)
 
 ---
 
@@ -40,46 +45,42 @@ Phase 2 replaced the create-next-app homepage with a light editorial chrome: IIM
 - **Light only:** removed `prefers-color-scheme` dark homepage. `.dark` token block remains unused (no toggle in v1).
 - **Maroon primary:** `--iimb-maroon: oklch(0.42 0.16 20)` → `--primary`, `--ring`, `--sidebar-primary`.
 - **Fonts:** `@theme inline` uses literal `"Geist"` / `"Geist Mono"` / `"Source Serif 4"` names (Tailwind v4 parse-time rule). CSS variables from `next/font` stay on `<html>`.
-- **Navbar:** desktop `NavLinks` (client, active via `usePathname`); mobile shadcn `Sheet`. Includes **Proposals**. No Studio / Sign-in / `UserButton` (Phase 6).
+- **Navbar:** desktop `NavLinks`; mobile Sheet; **Sign in** / grey avatar → `/me`. Labels: Directory, Proposals, Blogs, Gallery, FAQ.
 - **Footer:** student-run disclaimer + link to `https://ug.iimb.ac.in`.
 - **Dynamic routes:** `await params` (Next 16). No Prisma fetches on placeholder pages.
 - **Images:** `next.config.ts` unchanged — local only, no remote hosts.
+- **Clerk scope now:** Sign in + `/me` only. `/admin` still ungated (allowlist Phase 6). No webhook yet (`CLERK_WEBHOOK_SECRET` empty).
 
 ---
 
 ## Spec deviations (documented)
 
-1. **Clerk deferred** — plan allows skipping `ClerkProvider` until keys exist. No `@clerk/nextjs`, no `proxy.ts`, no `<SignIn />`. `/sign-in` is a static placeholder.
-2. **shadcn style** — CLI defaults produced `radix-nova` + `neutral` base (not the older “new-york / zinc” wording in plan.md). Zinc-like neutrals + maroon primary still match the locked design intent.
-3. **Browser automation** — no browser MCP in this session. Routes verified with HTTP fetches against the running `next dev` on port 3000 (HTML contains nav, maroon `bg-primary` button, logo, footer disclaimer; unknown paths return 404 with not-found copy). Mobile Sheet open/close was not click-tested in a real viewport; the Sheet trigger and nav markup are present in the HTML.
+1. **Clerk early** — originally deferred to Phase 6; keys appeared in `.env`, so provider + Sign in + `/me` were added to Phase 2 chrome. Studio/allowlist/BlockNote still Phase 6.
+2. **shadcn style** — CLI defaults produced `radix-nova` + `neutral` base (not the older “new-york / zinc” wording in plan.md).
+3. **Nav label** — public label is **Blogs** (not “Writing”); URL stays `/blogs`.
+4. **Gallery** — placeholder now; full build is Phase 8 (last content page).
 
 ---
 
 ## Verification (HTTP)
 
-All of these returned **200** with shared chrome:
+All of these returned **200** with shared chrome (re-check after Clerk restart):
 
-`/`, `/directory`, `/directory/test-slug`, `/proposals`, `/proposals/test-slug`, `/blogs`, `/blogs/test-slug`, `/faq`, `/sign-in`, `/admin`, `/admin/forbidden`, `/admin/profile`, `/admin/blogs`, `/admin/blogs/abc/edit`, `/admin/review`, `/admin/students`, `/admin/access`, `/admin/proposals`
+`/`, `/directory`, `/proposals`, `/blogs`, `/gallery`, `/faq`, `/sign-in`, `/admin`, …
 
-`/this-does-not-exist` → **404** (“Page not found”).
-
-Home HTML includes: `IIMB UG`, `iimb-logo`, `Browse directory`, `bg-primary`, student-run disclaimer, `ug.iimb.ac.in`. Starter “Create Next App” / `next.svg` gone. `tsc --noEmit` clean.
+`/me` requires sign-in (Clerk `auth.protect`). `/this-does-not-exist` → **404**.
 
 ---
 
 ## Definition of Done — Phase 2
 
-- [x] All public routes 200 with shared nav/footer (including `/proposals` placeholders)
-- [x] Mobile nav markup present (Sheet trigger); full viewport click not automated here
+- [x] All public routes 200 with shared nav/footer (including `/proposals`, `/gallery` placeholders)
+- [x] Mobile nav markup present (Sheet trigger)
 - [x] Starter page gone; maroon primary visible on a Button (`bg-primary`)
 - [x] Navbar shows `/iimb-logo.png` + **IIMB UG** text, linking to `/`
-- [x] Proposals placeholders: `/proposals`, `/proposals/[slug]`, nav link, `/admin/proposals` (full feature = Phase 2.5)
-
----
-
-## Proposals note (added after initial Phase 2 ship)
-
-Placeholder routes and nav were added so Phase **2.5** can implement voting before Directory (Phase 3). No Prisma models or vote forms yet — see `plan.md` Phase 2.5 open questions.
+- [x] Sign in button when signed out; grey avatar → `/me` when signed in
+- [x] `/me` and `/gallery` placeholders
+- [x] Nav label **Blogs** (not Writing)
 
 ---
 
@@ -89,7 +90,8 @@ Placeholder routes and nav were added so Phase **2.5** can implement voting befo
 - Directory search/filter + Prisma student cards (Phase 3)
 - BlockNote viewer / published blogs (Phase 4)
 - Landing hero + FAQ accordion content (Phase 5)
-- Clerk app, `ClerkProvider`, `proxy.ts`, allowlist gate, Studio auth UI (Phase 6)
+- Allowlist gate, Studio nav, BlockNote editor, review queue, webhooks (Phase 6)
 - SEO, OG, sitemap, production domain (Phase 7)
+- **Gallery content** (Phase 8 — last)
 
-Phase 2 is complete (placeholders include Proposals). Next: Phase **2.5** from `plan.md`, then Phase 3.
+Phase 2 chrome is complete. Next: Phase **2.5** from `plan.md`, then Phase 3.

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ClerkProvider } from "@clerk/nextjs";
 import { Geist, Geist_Mono, Source_Serif_4 } from "next/font/google";
 
 import { SiteShell } from "@/components/layout/site-shell";
@@ -34,13 +35,15 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${sourceSerif.variable} h-full antialiased`}
-    >
-      <body className="flex min-h-full flex-col font-sans">
-        <SiteShell>{children}</SiteShell>
-      </body>
-    </html>
+    <ClerkProvider>
+      <html
+        lang="en"
+        className={`${geistSans.variable} ${geistMono.variable} ${sourceSerif.variable} h-full antialiased`}
+      >
+        <body className="flex min-h-full flex-col font-sans">
+          <SiteShell>{children}</SiteShell>
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }

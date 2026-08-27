@@ -86,6 +86,8 @@ Primary audience: the 80 batchmates, families, and curious outsiders. Secondary:
 | Super-admin publish | Super-admin may approve (and can write posts). Even super-admin posts should go through Save draft → Submit → Approve so the queue stays honest. Shortcut: super-admin **Approve** on their own submission is enough |
 | FAQ | Pretty **dummy** accordion. Placeholder copy. Real answers later |
 | Proposals | Public index `/proposals` + `/proposals/[slug]`. Admins author a proposal (blog-like body), students vote via a form, results list at the bottom with optional **anonymity**. Printable for college review. **Full build = Phase 2.5** (before Directory). Schema/auth details locked in that phase’s kickoff |
+| Gallery | Public `/gallery` — **last** content page (Phase 8). Placeholder in Phase 2 |
+| `/me` | Signed-in self page (placeholder). Edit own student card later; avatar in navbar links here after Sign in |
 | Landing | Simple and honest. Visual polish is a later pass, not Phase 5 scope |
 | Auth | **Clerk** (`@clerk/nextjs` v7). New Clerk application — do **not** reuse the Ralevel instance |
 | Admin access | Clerk proves identity. **`AllowedEmail` in Postgres** is the source of truth for who may enter `/admin` |
@@ -151,12 +153,14 @@ Do these in **Phase 7**, not before coding Phase 1:
 │   │   ├── robots.ts
 │   │   ├── opengraph-image.tsx
 │   │   ├── sign-in/[[...sign-in]]/page.tsx
+│   │   ├── me/page.tsx                  # signed-in self profile (edit later)
 │   │   ├── directory/page.tsx
 │   │   ├── directory/[slug]/page.tsx
 │   │   ├── proposals/page.tsx
 │   │   ├── proposals/[slug]/page.tsx
 │   │   ├── blogs/page.tsx
 │   │   ├── blogs/[slug]/page.tsx
+│   │   ├── gallery/page.tsx             # last content page (Phase 8)
 │   │   ├── faq/page.tsx
 │   │   └── admin/
 │   │       ├── layout.tsx               # allowlist gate
@@ -283,7 +287,7 @@ NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
 CLERK_SECRET_KEY=
 CLERK_WEBHOOK_SECRET=
 NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
-NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL=/admin
+NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL=/me
 SUPER_ADMIN_EMAILS=vasumitragajbhiye20@gmail.com
 ```
 
@@ -521,12 +525,13 @@ export const NAV_LINKS = [
   { href: "/", label: "Home" },
   { href: "/directory", label: "Directory" },
   { href: "/proposals", label: "Proposals" },
-  { href: "/blogs", label: "Writing" },
+  { href: "/blogs", label: "Blogs" },
+  { href: "/gallery", label: "Gallery" },
   { href: "/faq", label: "FAQ" },
 ] as const;
 ```
 
-Public nav labels **Writing** (`/blogs`) and **Proposals** (`/proposals`). No admin link in the public nav. Signed-in allowlisted users see a **Studio** link to `/admin` via Clerk `Show`.
+Public nav: **Blogs** (`/blogs`), **Proposals**, **Gallery** (placeholder until Phase 8). No admin link in the public nav. Signed-in users see a grey avatar → `/me`; allowlisted Studio access still lives under `/admin` (Phase 6 gate).
 
 ### Definition of Done — Phase 1
 
@@ -562,7 +567,9 @@ Source Serif 4 for article/profile H1.
 
 ### 2.3 Navbar
 
-Desktop links from `NAV_LINKS`. Mobile: shadcn `Sheet`. Active state via a small client `NavLinks`. Clerk `SignInButton` / user button only after Phase 6.
+Desktop links from `NAV_LINKS`. Mobile: shadcn `Sheet`. Active state via a small client `NavLinks`.
+
+Auth chrome (once Clerk keys exist): **Sign in** button when signed out; when signed in, a grey profile avatar linking to `/me` (Clerk image if present, grey fallback otherwise). Sign-out via `UserButton` on `/me` for now. Full allowlist / Studio gate remains Phase 6.
 
 ### 2.4 Routes (placeholder `h1` is enough)
 
@@ -575,11 +582,13 @@ Desktop links from `NAV_LINKS`. Mobile: shadcn `Sheet`. Active state via a small
 | `/proposals/[slug]` | `proposals/[slug]/page.tsx` |
 | `/blogs` | `blogs/page.tsx` |
 | `/blogs/[slug]` | `blogs/[slug]/page.tsx` |
+| `/gallery` | `gallery/page.tsx` |
 | `/faq` | `faq/page.tsx` |
-| `/sign-in/[[...sign-in]]` | Clerk `<SignIn />` |
+| `/me` | `me/page.tsx` — signed-in “edit my info” placeholder |
+| `/sign-in/[[...sign-in]]` | Clerk `<SignIn />` (keys ready); else placeholder |
 | `/admin` and nested | placeholders (includes `/admin/proposals`) |
 
-`not-found.tsx` + `loading.tsx` for directory, blogs, and proposals.
+`not-found.tsx` + `loading.tsx` for directory, blogs, proposals, gallery.
 
 ### 2.5 Assets
 
@@ -731,7 +740,7 @@ Article: cover, serif title, author badge (link to profile), tags, BlockNote bod
 
 ### 5.1 `/`
 
-1. **Hero** — Welcome to the inaugural IIMB UG batch. One short paragraph (programmes, Jigani, August 2026). CTAs: Directory (primary), Writing (secondary). Student-run, not official.
+1. **Hero** — Welcome to the inaugural IIMB UG batch. One short paragraph (programmes, Jigani, August 2026). CTAs: Directory (primary), Blogs (secondary). Student-run, not official.
 2. **Recent insights** — 3 latest published posts. Hide section if zero.
 3. **Batch preview** — up to 8 listed avatars → `/directory`.
 
@@ -940,10 +949,29 @@ Super-admin CRUD for student cards (including `email` and `isListed`). Linking: 
 
 ### Definition of Done — Phase 7
 
-- [ ] Subdomain serves Home, Directory, profile, Writing, FAQ
+- [ ] Subdomain serves Home, Directory, profile, Blogs, Proposals, FAQ
 - [ ] Clerk production sign-in works
 - [ ] Approve on production appears on `/blogs` without redeploy
 - [ ] OG image on share
+
+---
+
+# Phase 8 — Gallery
+
+**Goal:** Last public content page — batch photo gallery at `/gallery`. Placeholder exists from Phase 2; implement last (after SEO/deploy is fine, or just before polish).
+
+Kickoff:
+
+```text
+Implement Phase 8 from plan.md. Read plan.md first and follow that phase only.
+```
+
+Details TBD in that chat (upload strategy, albums, captions). Do not invent an image CDN in earlier phases.
+
+### Definition of Done — Phase 8
+
+- [ ] `/gallery` shows real batch photos (not placeholder)
+- [ ] Works on mobile; images use local/`public` or a locked upload plan
 
 ---
 
@@ -995,10 +1023,11 @@ Super-admin CRUD for student cards (including `email` and `isListed`). Linking: 
 | Phase | Status |
 | --- | --- |
 | 1 Neon & Prisma | Done (see `docs/phase-1-report.md`) |
-| 2 Global UI & skeleton | Done (see `docs/phase-2-report.md`) |
+| 2 Global UI & skeleton | Done (see `docs/phase-2-report.md`) — Clerk Sign in + `/me` + Gallery placeholder added after |
 | 2.5 Proposals (voting) | Not started — placeholders in Phase 2; full feature next |
 | 3 Directory & profiles | Not started |
 | 4 Public blogs (viewer) | Not started |
 | 5 Landing & dummy FAQ | Not started |
-| 6 Clerk, studio, BlockNote, review | Not started |
+| 6 Clerk studio, BlockNote, review | Partial — Sign in / `/me` chrome early; allowlist + studio still here |
 | 7 SEO & `iimb-ug.vasumitragajbhiye.com` | Not started |
+| 8 Gallery | Not started — last content page |

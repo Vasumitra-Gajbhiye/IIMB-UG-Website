@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 
+import { AuthNav } from "@/components/layout/auth-nav";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { NavLinks } from "@/components/layout/nav-links";
 import { LOGO_SRC, SITE_NAME } from "@/lib/constants";
@@ -30,8 +31,11 @@ export function Navbar() {
           <NavLinks />
         </nav>
 
-        <div className="md:hidden">
-          <MobileNav />
+        <div className="flex items-center gap-2">
+          <AuthNav />
+          <div className="md:hidden">
+            <MobileNav />
+          </div>
         </div>
       </div>
     </header>
