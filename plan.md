@@ -91,7 +91,10 @@ Primary audience: the 80 batchmates, families, and curious outsiders. Secondary:
 | Landing | Simple and honest. Visual polish is a later pass, not Phase 5 scope |
 | Auth | **Clerk** (`@clerk/nextjs` v7). New Clerk application — do **not** reuse the Ralevel instance |
 | Admin access | Clerk proves identity. **`AllowedEmail` in Postgres** is the source of truth for who may enter `/admin` |
-| Sign-in methods | Google + email one-time code (Clerk defaults). Public sign-up disabled in the Dashboard |
+| Mods | `Role.SUPER_ADMIN` (env `SUPER_ADMIN_EMAILS` **or** `AllowedEmail.role`). Access + admin Directory are mod-only |
+| Super-admin immutability | Emails in `SUPER_ADMIN_EMAILS` are always allowed/mod. **Nobody** can remove or demote them via Access UI |
+| Admin Directory | `/admin/directory` — paginated (20) list of real Clerk sign-ups (`User`), not public `/directory` |
+| Sign-in methods | Google + email one-time code (Clerk defaults). **Public sign-up stays enabled** so Directory can list sign-ups; authorization is still `AllowedEmail` |
 | Design | Light, editorial. Zinc + IIMB maroon accent. Geist Sans UI, Source Serif 4 for titles |
 | Dark mode | No toggle in v1. Design for light |
 | Images | Avatars/covers in `public/` for seed/static. BlockNote inline images: **URL embed only in v1** (no R2/Cloudinary yet) |
@@ -114,8 +117,8 @@ Map shadcn `--primary` to this maroon.
 | Role | Who | Can do |
 | --- | --- | --- |
 | Anonymous | Public | Read home, directory, profiles, published blogs, FAQ |
-| `STUDENT` | Allowlisted email, linked to a `Student` | `/admin`: edit **own** profile + resources; create/edit **own** blogs; submit for review |
-| `SUPER_ADMIN` | `vasumitragajbhiye20@gmail.com` (`SUPER_ADMIN_EMAILS`) | Everything a student can, plus edit any profile, manage allowlist, review queue (approve / request changes) |
+| `STUDENT` | Allowlisted email, linked to a `Student` | `/admin`: edit **own** profile + resources; create/edit **own** blogs; submit for review. **Cannot** open Access or admin Directory |
+| `SUPER_ADMIN` (mod) | `SUPER_ADMIN_EMAILS` and/or `AllowedEmail.role = SUPER_ADMIN` | Everything a student can, plus Access allowlist, admin Directory of sign-ups, edit any profile, review queue |
 
 Unlinked allowlisted users (email on the list, no `Student` row yet): can sign in, see a “ask super-admin to link your profile” screen, cannot publish.
 
@@ -163,16 +166,19 @@ Do these in **Phase 7**, not before coding Phase 1:
 │   │   ├── gallery/page.tsx             # last content page (Phase 8)
 │   │   ├── faq/page.tsx
 │   │   └── admin/
-│   │       ├── layout.tsx               # allowlist gate
-│   │       ├── page.tsx                 # dashboard
+│   │       ├── layout.tsx               # thin (no allowlist)
 │   │       ├── forbidden/page.tsx       # signed in, not allowlisted
-│   │       ├── profile/page.tsx         # edit own student card + resources
-│   │       ├── proposals/page.tsx       # SUPER_ADMIN proposal roster
-│   │       ├── blogs/page.tsx           # my posts
-│   │       ├── blogs/[id]/edit/page.tsx
-│   │       ├── review/page.tsx          # SUPER_ADMIN queue
-│   │       ├── students/page.tsx        # SUPER_ADMIN roster
-│   │       └── access/page.tsx          # SUPER_ADMIN allowlist
+│   │       └── (studio)/                # requireAllowlisted + sidebar
+│   │           ├── layout.tsx
+│   │           ├── page.tsx             # dashboard
+│   │           ├── access/page.tsx      # mod allowlist
+│   │           ├── directory/page.tsx   # mod signed-up users (20/page)
+│   │           ├── profile/page.tsx     # edit own student card + resources
+│   │           ├── proposals/page.tsx   # SUPER_ADMIN proposal roster
+│   │           ├── blogs/page.tsx       # my posts
+│   │           ├── blogs/[id]/edit/page.tsx
+│   │           ├── review/page.tsx      # SUPER_ADMIN queue
+│   │           └── students/page.tsx    # SUPER_ADMIN roster (CRUD later)
 │   ├── components/
 │   │   ├── layout/navbar.tsx
 │   │   ├── layout/footer.tsx
@@ -768,7 +774,7 @@ New Clerk app `iimb-ug` (CLI or Dashboard). **Do not** share Ralevel keys.
 Dashboard:
 
 - Google + email code
-- **Disable public sign-up** (or restrict to allowlist). Identity is still Google/email; **authorization** is our `AllowedEmail` table
+- **Leave public sign-up enabled** so arbitrary accounts can appear in `/admin/directory`. Identity is Google/email; **authorization** is our `AllowedEmail` table
 - Paths: `/sign-in`
 - Production domain later: `iimb-ug.vasumitragajbhiye.com`
 
@@ -779,10 +785,10 @@ Install `@clerk/nextjs`. `ClerkProvider` in `layout.tsx`. Sign-in page with `<Si
 ```ts
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
-const isAdminRoute = createRouteMatcher(["/admin(.*)"]);
+const isProtectedRoute = createRouteMatcher(["/me(.*)", "/admin(.*)"]);
 
 export default clerkMiddleware(async (auth, req) => {
-  if (isAdminRoute(req)) await auth.protect();
+  if (isProtectedRoute(req)) await auth.protect();
 });
 
 export const config = {
@@ -793,13 +799,13 @@ export const config = {
 };
 ```
 
-`/admin/forbidden` is still under `/admin` so it requires sign-in — that is correct.
+`/admin/forbidden` is still under `/admin` so it requires sign-in — that is correct. Webhook routes under `/api/webhooks` stay public (not in the protected matcher).
 
 ### 6.3 Sync Clerk → Prisma
 
 Webhook `user.created` / `user.updated` / `user.deleted`:
 
-- Verify with `svix` + `CLERK_WEBHOOK_SECRET`
+- Verify with `verifyWebhook` from `@clerk/nextjs/webhooks` (`CLERK_WEBHOOK_SIGNING_SECRET`)
 - Upsert `User` on `clerkId`
 - Email = primary email, lowercase
 - If email is in `SUPER_ADMIN_EMAILS` → `role = SUPER_ADMIN`
@@ -807,7 +813,7 @@ Webhook `user.created` / `user.updated` / `user.deleted`:
 - Else still upsert `User` (they signed in) but they fail the allowlist gate
 - Auto-link: if `Student.email` matches, set `User.studentId`
 
-Also upsert on first `/admin` hit (`ensureUser()`) so local dev works before the webhook is tunneled.
+Also upsert on first `/admin` **and** `/me` hit (`ensureUser()`) so local dev works before the webhook is tunneled and Directory captures sign-ups that only visit `/me`.
 
 ### 6.4 Allowlist gate — `src/lib/auth.ts`
 
@@ -819,24 +825,30 @@ if email not in AllowedEmail AND not super-admin → redirect /admin/forbidden
 
 Super-admin emails are always treated as allowed (seed + env), even if someone deletes the row.
 
-`admin/layout.tsx`: run the gate, render studio nav:
+Studio shell uses a route group so forbidden is ungated by allowlist:
+
+- `admin/layout.tsx` — thin (no allowlist)
+- `admin/forbidden` — signed-in, not allowlisted
+- `admin/(studio)/layout.tsx` — `requireAllowlisted()` + left sidebar
 
 | Nav | Who |
 | --- | --- |
+| Access (first) | mods (`SUPER_ADMIN`) |
+| Directory | mods (`SUPER_ADMIN`) |
 | Home (dashboard) | all allowlisted |
-| My profile | all (disabled copy if unlinked) |
-| My writing | all linked students + super-admin |
-| Review | `SUPER_ADMIN` |
-| Students | `SUPER_ADMIN` |
-| Access | `SUPER_ADMIN` |
+| My profile / writing / review / students / proposals | later Phase 6 (placeholders stay unlinked for now) |
 
-Navbar public: `UserButton` when signed in.
+Navbar public: grey avatar → `/me` when signed in (UserButton on `/me`).
 
 ### 6.5 Access UI — `/admin/access`
 
-Super-admin only. Table of `AllowedEmail`. Add email (lowercase, Zod email). Remove (cannot remove the last super-admin email). Optional: set role `STUDENT` vs `SUPER_ADMIN`.
+Mods only. Table of `AllowedEmail`. Add email (lowercase, Zod email) + role `STUDENT` | `SUPER_ADMIN` (UI label **Mod**). Remove / change role for non-env rows. **Cannot remove or demote emails in `SUPER_ADMIN_EMAILS`.**
 
-This is how you “give certain emails access.” Later you paste official batch emails here and set `Student.email` on `/admin/students`.
+This is how you grant Studio entry (`STUDENT`) or mod powers (`SUPER_ADMIN`). Later you paste official batch emails here and set `Student.email` on `/admin/students`.
+
+### 6.5b Admin Directory — `/admin/directory`
+
+Mods only. Paginated table (20/page) of Prisma `User` (everyone who signed up via Clerk). Columns: email, name and course from linked `Student` (or `—` placeholders until they fill `/me` / profile), signed-up date. Not the public `/directory` grid (Phase 3).
 
 ### 6.6 Profile edit — `/admin/profile`
 
