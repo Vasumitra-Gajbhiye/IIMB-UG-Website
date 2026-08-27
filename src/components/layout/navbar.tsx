@@ -27,11 +27,10 @@ export function Navbar() {
           </span>
         </Link>
 
-        <nav className="hidden items-center gap-1 md:flex" aria-label="Primary">
-          <NavLinks />
-        </nav>
-
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <nav className="hidden items-center gap-1 md:flex" aria-label="Primary">
+            <NavLinks />
+          </nav>
           <AuthNav />
           <div className="md:hidden">
             <MobileNav />
