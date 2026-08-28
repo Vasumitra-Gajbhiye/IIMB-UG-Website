@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/sheet";
 import { SITE_NAME } from "@/lib/constants";
 
-export function MobileNav() {
+export function MobileNav({ showProposals = false }: { showProposals?: boolean }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -31,6 +31,7 @@ export function MobileNav() {
         <nav className="mt-4 px-2" aria-label="Mobile primary">
           <NavLinks
             orientation="vertical"
+            showProposals={showProposals}
             onNavigate={() => setOpen(false)}
           />
         </nav>

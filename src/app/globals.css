@@ -2,6 +2,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @plugin "@tailwindcss/typography";
+@source "../../node_modules/@blocknote/shadcn";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -132,4 +133,16 @@
   html {
     @apply font-sans;
   }
+}
+
+/* Isolate BlockNote so its chrome does not restyle the rest of the site. */
+.bn-editor .bn-container {
+  --bn-colors-editor-background: transparent;
+  background: transparent;
+  font-family: inherit;
+}
+
+.bn-editor .bn-editor {
+  background: transparent;
+  padding-inline: 0;
 }

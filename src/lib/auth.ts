@@ -135,10 +135,14 @@ export async function deleteUserByClerkId(clerkId: string): Promise<void> {
 }
 
 /** Require sign-in + allowlist. Redirects to forbidden if not allowlisted. */
-export async function requireAllowlisted(): Promise<SessionUser> {
+export async function requireAllowlisted(options?: {
+  redirectTo?: string;
+}): Promise<SessionUser> {
   const session = await ensureUser();
   if (!session) redirect("/sign-in");
-  if (!session.isAllowlisted) redirect("/admin/forbidden");
+  if (!session.isAllowlisted) {
+    redirect(options?.redirectTo ?? "/admin/forbidden");
+  }
   return session;
 }
 

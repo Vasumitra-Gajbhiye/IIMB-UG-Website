@@ -1,25 +1,99 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 
-export const metadata: Metadata = {
-  title: "Proposal",
-};
+import { ProposalStatus } from "@/generated/prisma/client";
+
+import { BlockNoteViewer } from "@/components/blogs/blocknote-viewer-dynamic";
+import { ProposalStatusBadge } from "@/components/proposals/proposal-status-badge";
+import { VoteForm } from "@/components/proposals/vote-form";
+import { VoteList } from "@/components/proposals/vote-list";
+import { Separator } from "@/components/ui/separator";
+import { requireAllowlisted } from "@/lib/auth";
+import { excerptFromContent, formatDate } from "@/lib/proposals";
+import { getMemberProposalBySlug } from "@/lib/queries/proposals";
 
 type Props = {
   params: Promise<{ slug: string }>;
 };
 
-export default async function ProposalDetailPage({ params }: Props) {
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
+  const proposal = await getMemberProposalBySlug(slug);
+  if (!proposal) return { title: "Proposal" };
+  return {
+    title: proposal.title,
+    description: excerptFromContent(proposal.content) ?? undefined,
+  };
+}
+
+export default async function ProposalDetailPage({ params }: Props) {
+  const session = await requireAllowlisted({ redirectTo: "/not-allowlisted" });
+  const { slug } = await params;
+  const proposal = await getMemberProposalBySlug(slug);
+  if (!proposal) notFound();
+
+  const existingVote = proposal.votes.find((vote) => vote.userId === session.id);
+  const isOpen = proposal.status === ProposalStatus.PUBLISHED;
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
-      <h1 className="font-serif text-3xl font-semibold tracking-tight">
-        Proposal
+    <div className="mx-auto max-w-2xl px-4 py-12 sm:px-6">
+      <div className="flex flex-wrap items-center gap-2">
+        {proposal.status === ProposalStatus.CLOSED ? (
+          <ProposalStatusBadge status={proposal.status} />
+        ) : null}
+        {proposal.publishedAt ? (
+          <p className="text-sm text-muted-foreground">
+            {formatDate(proposal.publishedAt)}
+          </p>
+        ) : null}
+      </div>
+      <h1 className="mt-3 font-serif text-4xl font-semibold tracking-tight">
+        {proposal.title}
       </h1>
-      <p className="mt-2 text-muted-foreground">
-        Placeholder for <code className="text-sm">{slug}</code> — body, vote
-        form, and results list arrive in Phase 2.5.
-      </p>
+
+      <div className="mt-8">
+        <BlockNoteViewer content={proposal.content} />
+      </div>
+
+      <Separator className="my-10" />
+
+      <section>
+        <h2 className="font-serif text-2xl font-semibold tracking-tight">
+          Vote
+        </h2>
+        {!isOpen ? (
+          <p className="mt-3 text-sm text-muted-foreground">
+            Voting is closed.
+          </p>
+        ) : existingVote ? (
+          <p className="mt-3 text-sm text-muted-foreground">
+            Your vote is in
+            {existingVote.anonymous ? " (anonymous)" : ""}.
+          </p>
+        ) : (
+          <div className="mt-4">
+            <VoteForm proposalId={proposal.id} fields={proposal.fields} />
+          </div>
+        )}
+      </section>
+
+      <Separator className="my-10" />
+
+      <section>
+        <h2 className="font-serif text-2xl font-semibold tracking-tight">
+          Votes
+        </h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Newest first. Anonymous ballots hide the name from members.
+        </p>
+        <div className="mt-4">
+          <VoteList
+            votes={proposal.votes}
+            fields={proposal.fields}
+            revealAnonymous={false}
+          />
+        </div>
+      </section>
     </div>
   );
 }

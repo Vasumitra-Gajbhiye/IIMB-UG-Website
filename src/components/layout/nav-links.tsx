@@ -10,14 +10,19 @@ type NavLinksProps = {
   className?: string;
   onNavigate?: () => void;
   orientation?: "horizontal" | "vertical";
+  showProposals?: boolean;
 };
 
 export function NavLinks({
   className,
   onNavigate,
   orientation = "horizontal",
+  showProposals = false,
 }: NavLinksProps) {
   const pathname = usePathname();
+  const links = NAV_LINKS.filter(
+    (link) => link.href !== "/proposals" || showProposals,
+  );
 
   return (
     <ul
@@ -28,7 +33,7 @@ export function NavLinks({
         className,
       )}
     >
-      {NAV_LINKS.map(({ href, label }) => {
+      {links.map(({ href, label }) => {
         const isActive =
           href === "/"
             ? pathname === "/"

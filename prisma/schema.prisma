@@ -30,6 +30,18 @@ enum FaqCategory {
   CAMPUS_LIFE
 }
 
+enum ProposalStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+}
+
+enum ProposalFieldType {
+  TEXT
+  SINGLE_SELECT
+  MULTI_SELECT
+}
+
 model User {
   id        String   @id @default(uuid())
   clerkId   String   @unique
@@ -40,6 +52,8 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   reviewedBlogs Blog[] @relation("BlogReviewer")
+  authoredProposals Proposal[] @relation("ProposalAuthor")
+  votes             ProposalVote[]
 }
 
 model AllowedEmail {
@@ -124,4 +138,52 @@ model Faq {
   updatedAt DateTime    @updatedAt
 
   @@index([category, sortOrder])
+}
+
+model Proposal {
+  id          String         @id @default(uuid())
+  slug        String         @unique
+  title       String         @default("Untitled")
+  content     Json           @default("[]")
+  status      ProposalStatus @default(DRAFT)
+  formSavedAt DateTime?
+  publishedAt DateTime?
+  closedAt    DateTime?
+  createdById String
+  createdBy   User           @relation("ProposalAuthor", fields: [createdById], references: [id], onDelete: Restrict)
+  fields      ProposalField[]
+  votes       ProposalVote[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([status, publishedAt])
+  @@index([createdById])
+}
+
+model ProposalField {
+  id         String             @id @default(uuid())
+  proposalId String
+  proposal   Proposal           @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  label      String
+  type       ProposalFieldType
+  options    String[]
+  sortOrder  Int                @default(0)
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+
+  @@index([proposalId, sortOrder])
+}
+
+model ProposalVote {
+  id         String   @id @default(uuid())
+  proposalId String
+  proposal   Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  anonymous  Boolean  @default(false)
+  answers    Json
+  createdAt  DateTime @default(now())
+
+  @@unique([proposalId, userId])
+  @@index([proposalId, createdAt])
 }

@@ -24,6 +24,7 @@ type NavItem = {
 const NAV_ITEMS: NavItem[] = [
   { href: "/admin/access", label: "Access", modsOnly: true },
   { href: "/admin/directory", label: "Directory", modsOnly: true },
+  { href: "/admin/proposals", label: "Proposals", modsOnly: true },
   { href: "/admin", label: "Home" },
 ];
 

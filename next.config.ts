@@ -1,7 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  serverExternalPackages: [
+    "@blocknote/core",
+    "@blocknote/react",
+    "@blocknote/shadcn",
+  ],
 };
 
 export default nextConfig;

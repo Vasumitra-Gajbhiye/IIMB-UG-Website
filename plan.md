@@ -85,13 +85,13 @@ Primary audience: the 80 batchmates, families, and curious outsiders. Secondary:
 | Blog review | Nobody self-publishes. Flow: `DRAFT` → `IN_REVIEW` → `PUBLISHED` or `CHANGES_REQUESTED` |
 | Super-admin publish | Super-admin may approve (and can write posts). Even super-admin posts should go through Save draft → Submit → Approve so the queue stays honest. Shortcut: super-admin **Approve** on their own submission is enough |
 | FAQ | Pretty **dummy** accordion. Placeholder copy. Real answers later |
-| Proposals | Public index `/proposals` + `/proposals/[slug]`. Admins author a proposal (blog-like body), students vote via a form, results list at the bottom with optional **anonymity**. Printable for college review. **Full build = Phase 2.5** (before Directory). Schema/auth details locked in that phase’s kickoff |
+| Proposals | **Members only** (`/proposals` + `/proposals/[slug]`). Hidden from the public nav. Mods author a BlockNote body, then a vote form (text / single-select / multi-select) that locks after first save. Allowlisted users vote once; optional anonymity (members see “Anonymous”, mods always see identity). After publish: blog still editable, Close stops votes, Delete removes the proposal. Admin click on a live row opens stats. **Phase 2.5 done.** |
 | Gallery | Public `/gallery` — **last** content page (Phase 8). Placeholder in Phase 2 |
 | `/me` | Signed-in self page (placeholder). Edit own student card later; avatar in navbar links here after Sign in |
 | Landing | Simple and honest. Visual polish is a later pass, not Phase 5 scope |
 | Auth | **Clerk** (`@clerk/nextjs` v7). New Clerk application — do **not** reuse the Ralevel instance |
 | Admin access | Clerk proves identity. **`AllowedEmail` in Postgres** is the source of truth for who may enter `/admin` |
-| Mods | `Role.SUPER_ADMIN` (env `SUPER_ADMIN_EMAILS` **or** `AllowedEmail.role`). Access + admin Directory are mod-only |
+| Mods | `Role.SUPER_ADMIN` (env `SUPER_ADMIN_EMAILS` **or** `AllowedEmail.role`). Access + admin Directory + **proposals authoring** are mod-only |
 | Super-admin immutability | Emails in `SUPER_ADMIN_EMAILS` are always allowed/mod. **Nobody** can remove or demote them via Access UI |
 | Admin Directory | `/admin/directory` — paginated (20) list of real Clerk sign-ups (`User`), not public `/directory` |
 | Sign-in methods | Google + email one-time code (Clerk defaults). **Public sign-up stays enabled** so Directory can list sign-ups; authorization is still `AllowedEmail` |
@@ -116,9 +116,9 @@ Map shadcn `--primary` to this maroon.
 
 | Role | Who | Can do |
 | --- | --- | --- |
-| Anonymous | Public | Read home, directory, profiles, published blogs, FAQ |
-| `STUDENT` | Allowlisted email, linked to a `Student` | `/admin`: edit **own** profile + resources; create/edit **own** blogs; submit for review. **Cannot** open Access or admin Directory |
-| `SUPER_ADMIN` (mod) | `SUPER_ADMIN_EMAILS` and/or `AllowedEmail.role = SUPER_ADMIN` | Everything a student can, plus Access allowlist, admin Directory of sign-ups, edit any profile, review queue |
+| Anonymous | Public | Read home, directory, profiles, published blogs, FAQ. No Proposals nav link; `/proposals` requires sign-in + allowlist |
+| `STUDENT` | Allowlisted email, linked to a `Student` | `/admin`: edit **own** profile + resources; create/edit **own** blogs; submit for review. Vote on `/proposals`. **Cannot** open Access, admin Directory, or admin Proposals |
+| `SUPER_ADMIN` (mod) | `SUPER_ADMIN_EMAILS` and/or `AllowedEmail.role = SUPER_ADMIN` | Everything a student can, plus Access allowlist, admin Directory of sign-ups, proposal authoring/stats, edit any profile, review queue |
 
 Unlinked allowlisted users (email on the list, no `Student` row yet): can sign in, see a “ask super-admin to link your profile” screen, cannot publish.
 
@@ -229,7 +229,7 @@ Pages stay **Server Components**. `"use client"` only for: directory filter, Blo
 | Auth | Clerk v7, `proxy.ts` + `auth.protect()` on `/admin` |
 | DB | Neon Postgres |
 | ORM | Prisma 7 + `@prisma/adapter-neon` |
-| Editor | `@blocknote/core` `@blocknote/react` `@blocknote/mantine` (same as Ralevel) |
+| Editor | `@blocknote/core` `@blocknote/react` `@blocknote/shadcn` (shadcn, not Mantine) |
 | Icons | lucide-react |
 
 ```bash
@@ -243,7 +243,7 @@ npx shadcn@latest init -d --base radix
 npx shadcn@latest add button card input label textarea select badge avatar accordion separator skeleton sheet dropdown-menu tabs alert dialog sonner
 
 # Phase 4–6 editor + auth
-npm install @clerk/nextjs @blocknote/core @blocknote/react @blocknote/mantine @mantine/core @mantine/hooks
+npm install @clerk/nextjs @blocknote/core @blocknote/react @blocknote/shadcn
 npm install svix   # Clerk webhook verification
 ```
 
@@ -619,42 +619,25 @@ Naming: `/avatars/{slug}.jpg`, `/blogs/{slug}-cover.jpg`.
 
 # Phase 2.5 — Proposals (voting)
 
-**Goal:** Admins publish batch proposals; students open them, vote via a form, and see a printable results list (with anonymity options). **Runs after Phase 2 chrome, before Phase 3 Directory.**
+**Goal:** Mods publish batch proposals; allowlisted members open them, vote via a form, and see results. **Runs after Phase 2 chrome, before Phase 3 Directory.**
 
-Kickoff prompt:
+### Locked rules
 
-```text
-Implement Phase 2.5 from plan.md. Read plan.md first and follow that phase only.
-Do not start Phase 3 until Phase 2.5's Definition of Done is checked off.
-```
-
-### Intent (locked at a high level; details in kickoff)
-
-1. **Index** `/proposals` — list of proposals authored by admins.
-2. **Detail** `/proposals/[slug]` — blog-like body explaining the proposal; vote form for students; results table/list at the bottom (who voted what), with an **anonymity** feature suitable for printing and submitting to the college.
-3. **Admin** `/admin/proposals` — create / edit / close proposals (exact fields TBD).
-
-### Open questions (resolve in the Phase 2.5 chat before coding schema)
-
-- Who may vote: allowlisted signed-in students only vs public form (name/email) vs hybrid?
-- Vote shape: yes/no, multi-choice, free-text, ranked — what fields does the college need?
-- Anonymity: voter opt-in per ballot, admin toggle per proposal, or always anonymized on the public print view while admins see names?
-- Does voting need Clerk first (Phase 6), or a no-auth form that Phase 6 later hardens?
-- One vote per person — how enforced (student link, email OTP, honor system)?
-- Print: browser print stylesheet vs dedicated `/proposals/[slug]/print` page vs export PDF?
-
-### Phase 2 (done) scope for this feature
-
-Placeholders only: public `/proposals`, `/proposals/[slug]`, `loading.tsx`, nav label **Proposals**, admin `/admin/proposals`. No Prisma models yet.
+1. **Index** `/proposals` — allowlisted signed-in members only. Nav link hidden otherwise. Unsigned → Clerk; signed-in but not allowlisted → `/not-allowlisted`.
+2. **Detail** `/proposals/[slug]` — BlockNote body; vote form (text / single / multi); votes at the bottom, newest first. Optional anonymity per ballot (members see “Anonymous”; mods see names on admin stats).
+3. **Admin** `/admin/proposals` — mods only. Create = BlockNote blog → freeze vote form → publish. After publish: edit blog, view stats, close voting, delete. Form cannot be edited after first save. One vote per user (`@@unique([proposalId, userId])`). Close is one-way. No dedicated print route (browser print is enough).
 
 ### Definition of Done — Phase 2.5
 
-- [ ] Schema + migrate for proposals and votes (fields locked in kickoff)
-- [ ] Admin can create/publish a proposal with a body
-- [ ] Students can open a proposal and submit a vote
-- [ ] Results list shows votes with anonymity behavior as locked
-- [ ] Page is printable for college submission
-- [ ] Unlisted / closed proposals behave as specified
+- [x] Schema + migrate for proposals, fields, and votes
+- [x] Admin can create/save a BlockNote body without publishing
+- [x] Admin can build a vote form (text / single-select / multi-select) and freeze it
+- [x] Admin can publish; members see it on `/proposals`
+- [x] Allowlisted members can submit one vote, optionally anonymous
+- [x] Member page lists votes newest-first (anonymous names hidden)
+- [x] Admin stats show aggregates + named ballots (including anonymous)
+- [x] Close stops new votes; delete removes the proposal
+- [x] Drafts stay off `/proposals`; closed proposals remain visible as Closed
 
 ---
 
@@ -715,7 +698,7 @@ export const BlockNoteViewer = dynamic(() => import("./blocknote-viewer"), { ssr
 
 `resolveInitialContent` — empty/invalid array → `undefined` (BlockNote rejects `[]`).
 
-Wrap viewer in a readable column. Isolate BlockNote/Mantine CSS under `.bn-notion-editor` so it does not restyle the rest of the site. Copy `blocknote-notion.css` ideas from Ralevel; restyle to maroon/zinc.
+Wrap viewer in a readable column. Isolate BlockNote CSS under `.bn-editor` so it does not restyle the rest of the site.
 
 ### 4.2 Queries
 
@@ -1024,7 +1007,7 @@ Details TBD in that chat (upload strategy, albums, captions). Do not invent an i
 | Next 16 `params` | Always `await params` |
 | `revalidateTag(tag)` TS error | Second arg `"max"` |
 | BlockNote `[]` crash | `resolveInitialContent` |
-| Mantine CSS leaks | Scope under `.bn-notion-editor` |
+| BlockNote CSS leaks | Scope under `.bn-editor` |
 | Logo / trademark | Student-run disclaimer; you confirmed logo use |
 | Self-publish bypass | No `PUBLISHED` write from student actions |
 
@@ -1036,7 +1019,7 @@ Details TBD in that chat (upload strategy, albums, captions). Do not invent an i
 | --- | --- |
 | 1 Neon & Prisma | Done (see `docs/phase-1-report.md`) |
 | 2 Global UI & skeleton | Done (see `docs/phase-2-report.md`) — Clerk Sign in + `/me` + Gallery placeholder added after |
-| 2.5 Proposals (voting) | Not started — placeholders in Phase 2; full feature next |
+| 2.5 Proposals (voting) | Done — members-only index/detail, mod authoring, freeze form, stats, close/delete |
 | 3 Directory & profiles | Not started |
 | 4 Public blogs (viewer) | Not started |
 | 5 Landing & dummy FAQ | Not started |
