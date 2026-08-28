@@ -86,7 +86,7 @@ Primary audience: the 80 batchmates, families, and curious outsiders. Secondary:
 | Super-admin publish | Super-admin may approve (and can write posts). Even super-admin posts should go through Save draft → Submit → Approve so the queue stays honest. Shortcut: super-admin **Approve** on their own submission is enough |
 | FAQ | Pretty **dummy** accordion. Placeholder copy. Real answers later |
 | Proposals | **Members only** (`/proposals` + `/proposals/[slug]`). Hidden from the public nav. Mods author a BlockNote body, then a vote form (text / single-select / multi-select) that locks after first save. Allowlisted users vote once; optional anonymity (members see “Anonymous”, mods always see identity). After publish: blog still editable, Close stops votes, Delete removes the proposal. Admin click on a live row opens stats. **Phase 2.5 done.** |
-| Gallery | Public `/gallery` — **last** content page (Phase 8). Placeholder in Phase 2 |
+| Gallery | Public `/gallery` — date-grouped masonry. Allowlisted users post instantly from `/admin/gallery`. Files live in Cloudflare R2 (presigned PUT). **Phase 8 done.** |
 | `/me` | Signed-in self page (placeholder). Edit own student card later; avatar in navbar links here after Sign in |
 | Landing | Simple and honest. Visual polish is a later pass, not Phase 5 scope |
 | Auth | **Clerk** (`@clerk/nextjs` v7). New Clerk application — do **not** reuse the Ralevel instance |
@@ -97,7 +97,7 @@ Primary audience: the 80 batchmates, families, and curious outsiders. Secondary:
 | Sign-in methods | Google + email one-time code (Clerk defaults). **Public sign-up stays enabled** so Directory can list sign-ups; authorization is still `AllowedEmail` |
 | Design | Light, editorial. Zinc + IIMB maroon accent. Geist Sans UI, Source Serif 4 for titles |
 | Dark mode | No toggle in v1. Design for light |
-| Images | Avatars/covers in `public/` for seed/static. BlockNote inline images: **URL embed only in v1** (no R2/Cloudinary yet) |
+| Images | Avatars/covers in `public/` for seed/static. **Gallery** photos/videos: Cloudflare R2 (see `docs/r2-setup.md`). BlockNote inline images: URL embed only |
 | Comments / likes / RSS | Out of scope |
 | Analytics | `@vercel/analytics` in Phase 7 |
 | ORM | Prisma **7** + Neon pooled URL for queries, direct URL for migrations |
@@ -116,8 +116,8 @@ Map shadcn `--primary` to this maroon.
 
 | Role | Who | Can do |
 | --- | --- | --- |
-| Anonymous | Public | Read home, directory, profiles, published blogs, FAQ. No Proposals nav link; `/proposals` requires sign-in + allowlist |
-| `STUDENT` | Allowlisted email, linked to a `Student` | `/admin`: edit **own** profile + resources; create/edit **own** blogs; submit for review. Vote on `/proposals`. **Cannot** open Access, admin Directory, or admin Proposals |
+| Anonymous | Public | Read home, directory, profiles, published blogs, FAQ, **gallery**. No Proposals nav link; `/proposals` requires sign-in + allowlist |
+| `STUDENT` | Allowlisted email, linked to a `Student` | `/admin`: edit **own** profile + resources; create/edit **own** blogs; submit for review. Vote on `/proposals`. Post to `/gallery` from Studio. **Cannot** open Access, admin Directory, or admin Proposals |
 | `SUPER_ADMIN` (mod) | `SUPER_ADMIN_EMAILS` and/or `AllowedEmail.role = SUPER_ADMIN` | Everything a student can, plus Access allowlist, admin Directory of sign-ups, proposal authoring/stats, edit any profile, review queue |
 
 Unlinked allowlisted users (email on the list, no `Student` row yet): can sign in, see a “ask super-admin to link your profile” screen, cannot publish.
@@ -163,7 +163,7 @@ Do these in **Phase 7**, not before coding Phase 1:
 │   │   ├── proposals/[slug]/page.tsx
 │   │   ├── blogs/page.tsx
 │   │   ├── blogs/[slug]/page.tsx
-│   │   ├── gallery/page.tsx             # last content page (Phase 8)
+│   │   ├── gallery/page.tsx             # date-grouped masonry
 │   │   ├── faq/page.tsx
 │   │   └── admin/
 │   │       ├── layout.tsx               # thin (no allowlist)
@@ -175,6 +175,7 @@ Do these in **Phase 7**, not before coding Phase 1:
 │   │           ├── directory/page.tsx   # mod signed-up users (20/page)
 │   │           ├── profile/page.tsx     # edit own student card + resources
 │   │           ├── proposals/page.tsx   # SUPER_ADMIN proposal roster
+│   │           ├── gallery/page.tsx     # allowlisted composer + own/all posts
 │   │           ├── blogs/page.tsx       # my posts
 │   │           ├── blogs/[id]/edit/page.tsx
 │   │           ├── review/page.tsx      # SUPER_ADMIN queue
@@ -207,8 +208,10 @@ Do these in **Phase 7**, not before coding Phase 1:
 │   │   ├── slug.ts
 │   │   ├── auth.ts                      # current user + role from Clerk + Prisma
 │   │   ├── allowlist.ts
-│   │   ├── queries/{students,blogs,faqs,resources,proposals}.ts
-│   │   └── actions/{profile,blogs,review,access,students,proposals}.ts
+│   │   ├── gallery.ts
+│   │   ├── r2.ts
+│   │   ├── queries/{students,blogs,faqs,resources,proposals,gallery}.ts
+│   │   └── actions/{profile,blogs,review,access,students,proposals,gallery}.ts
 │   └── app/api/webhooks/clerk/route.ts
 └── public/
     ├── iimb-logo.png                    # already in repo (sunburst mark)
@@ -295,6 +298,11 @@ CLERK_WEBHOOK_SECRET=
 NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
 NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL=/me
 SUPER_ADMIN_EMAILS=vasumitragajbhiye20@gmail.com
+R2_ACCOUNT_ID=
+R2_ACCESS_KEY_ID=
+R2_SECRET_ACCESS_KEY=
+R2_BUCKET_NAME=
+R2_PUBLIC_BASE_URL=
 ```
 
 Prisma v7 does not auto-load `.env`. First line of `prisma.config.ts`: `import "dotenv/config"`.
@@ -930,7 +938,7 @@ Super-admin CRUD for student cards (including `email` and `isListed`). Linking: 
 ### 7.2 Deploy
 
 1. GitHub + Vercel project.
-2. Env: Neon URLs, Clerk **production** keys, `CLERK_WEBHOOK_SECRET`, `SUPER_ADMIN_EMAILS`, `NEXT_PUBLIC_SITE_URL=https://iimb-ug.vasumitragajbhiye.com`.
+2. Env: Neon URLs, Clerk **production** keys, `CLERK_WEBHOOK_SECRET`, `SUPER_ADMIN_EMAILS`, `NEXT_PUBLIC_SITE_URL=https://iimb-ug.vasumitragajbhiye.com`, R2 vars from `docs/r2-setup.md`.
 3. Build: `prisma generate && prisma migrate deploy && next build`.
 4. DNS: CNAME `iimb-ug` on `vasumitragajbhiye.com` → Vercel.
 5. Clerk: add production domain + Google redirect URIs.
@@ -953,7 +961,7 @@ Super-admin CRUD for student cards (including `email` and `isListed`). Linking: 
 
 # Phase 8 — Gallery
 
-**Goal:** Last public content page — batch photo gallery at `/gallery`. Placeholder exists from Phase 2; implement last (after SEO/deploy is fine, or just before polish).
+**Goal:** Public batch photo/video gallery at `/gallery`. Allowlisted people compose a batch in Studio; posts go live immediately (no review queue). Media is stored in Cloudflare R2.
 
 Kickoff:
 
@@ -961,18 +969,32 @@ Kickoff:
 Implement Phase 8 from plan.md. Read plan.md first and follow that phase only.
 ```
 
-Details TBD in that chat (upload strategy, albums, captions). Do not invent an image CDN in earlier phases.
+Setup: `docs/r2-setup.md`.
+
+### Locked rules
+
+1. **Public** `/gallery` — date-grouped masonry (Asia/Kolkata calendar day from `takenAt`). Click opens a lightbox (image / native video, caption, date, listed student name when linked).
+2. **Composer** `/admin/gallery` — all allowlisted users. Drag-and-drop or select from computer. Preview + per-item caption + optional date before **Post**. Instant publish.
+3. **R2** — browser PUTs via presigned URLs (`ContentType` + `ContentLength`). Never proxy files through Vercel.
+4. **Limits** — images 25 MB (JPEG/PNG/WebP/GIF; HEIC converted in-browser). Videos 200 MB (MP4/WebM/MOV). Max 40 files per post. Validation is **per file** (a 300 MB video is rejected; the photos stay).
+5. **Dates** — user date if provided, else EXIF `DateTimeOriginal` / file `lastModified`, else now.
+6. **Delete** — author can delete own posts; mods can delete anyone’s. R2 object is removed with the row.
+7. Author is `User` (unlinked allowlisted people can post). Public attribution uses listed `Student` only — never email.
 
 ### Definition of Done — Phase 8
 
-- [ ] `/gallery` shows real batch photos (not placeholder)
-- [ ] Works on mobile; images use local/`public` or a locked upload plan
+- [x] `/gallery` shows real batch photos (not placeholder)
+- [x] Works on mobile; images/videos stored in Cloudflare R2
+- [x] Per-file size/type errors; 200 MB video cap
+- [x] Preview + captions + optional dates before Post
+- [x] `docs/r2-setup.md` + env vars in `.env.example`
 
 ---
 
 ## Out of scope (v1)
 
-- Cloudflare R2 / Cloudinary / Vercel Blob uploads
+- Cloudinary / Vercel Blob uploads (gallery uses R2; BlockNote images stay URL-embed)
+- Gallery review queue, albums, Cloudflare Images/Stream transcoding
 - Google Docs paste pipeline (replaced by BlockNote)
 - FAQ CMS
 - Comments, likes, RSS, newsletter
@@ -1010,6 +1032,8 @@ Details TBD in that chat (upload strategy, albums, captions). Do not invent an i
 | BlockNote CSS leaks | Scope under `.bn-editor` |
 | Logo / trademark | Student-run disclaimer; you confirmed logo use |
 | Self-publish bypass | No `PUBLISHED` write from student actions |
+| Gallery video through Vercel | Presigned PUT to R2; 200 MB never hits the function body |
+| Email leaked on gallery | Attribution is listed Student name only |
 
 ---
 
@@ -1025,4 +1049,4 @@ Details TBD in that chat (upload strategy, albums, captions). Do not invent an i
 | 5 Landing & dummy FAQ | Not started |
 | 6 Clerk studio, BlockNote, review | Partial — Sign in / `/me` chrome early; allowlist + studio still here |
 | 7 SEO & `iimb-ug.vasumitragajbhiye.com` | Not started |
-| 8 Gallery | Not started — last content page |
+| 8 Gallery | Done — public masonry, R2 uploads, `/admin/gallery` composer |

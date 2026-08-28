@@ -54,6 +54,7 @@ model User {
   reviewedBlogs Blog[] @relation("BlogReviewer")
   authoredProposals Proposal[] @relation("ProposalAuthor")
   votes             ProposalVote[]
+  galleryPosts      GalleryPost[]
 }
 
 model AllowedEmail {
@@ -186,4 +187,41 @@ model ProposalVote {
 
   @@unique([proposalId, userId])
   @@index([proposalId, createdAt])
+}
+
+enum GalleryItemKind {
+  IMAGE
+  VIDEO
+}
+
+model GalleryPost {
+  id        String        @id @default(uuid())
+  authorId  String
+  author    User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  items     GalleryItem[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([authorId, createdAt])
+}
+
+model GalleryItem {
+  id          String          @id @default(uuid())
+  postId      String
+  post        GalleryPost     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  kind        GalleryItemKind
+  key         String
+  url         String
+  contentType String
+  sizeBytes   Int
+  width       Int?
+  height      Int?
+  caption     String?         @db.Text
+  takenAt     DateTime
+  sortOrder   Int             @default(0)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([takenAt])
+  @@index([postId, sortOrder])
 }

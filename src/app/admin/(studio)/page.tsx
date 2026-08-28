@@ -18,8 +18,12 @@ export default async function AdminDashboardPage() {
           Studio
         </h1>
         <p className="mt-2 text-muted-foreground">
-          Student tools (profile editor, writing) will land here later. You are
-          allowlisted as{" "}
+          Share photos in{" "}
+          <Link href="/admin/gallery" className="text-primary underline-offset-4 hover:underline">
+            Gallery
+          </Link>
+          . Profile editor and writing will land here later. You are allowlisted
+          as{" "}
           <span className="font-medium text-foreground">{session.email}</span>.
         </p>
       </div>
