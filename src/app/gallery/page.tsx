@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 
+import { GalleryAddButton } from "@/components/gallery/gallery-add-button";
 import { GalleryMasonry } from "@/components/gallery/gallery-masonry";
-import { Button } from "@/components/ui/button";
 import { ensureUser } from "@/lib/auth";
 import { listPublicGalleryItems } from "@/lib/queries/gallery";
 
@@ -44,18 +43,14 @@ export default async function GalleryPage() {
             taken.
           </p>
         </div>
-        {session?.isAllowlisted ? (
-          <Button asChild>
-            <Link href="/admin/gallery">Add photos</Link>
-          </Button>
-        ) : null}
+        {session?.isAllowlisted ? <GalleryAddButton /> : null}
       </div>
 
       {items.length === 0 ? (
         <p className="mt-12 text-muted-foreground">
           Nothing here yet.
           {session?.isAllowlisted
-            ? " Add the first photos from Studio."
+            ? " Add the first photos."
             : " Check back after the batch starts posting."}
         </p>
       ) : (

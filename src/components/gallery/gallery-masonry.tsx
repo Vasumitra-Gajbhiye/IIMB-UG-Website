@@ -107,6 +107,7 @@ function GalleryLightbox({ item }: { item: PublicGalleryItem }) {
             height={item.height ?? 1200}
             className="mx-auto h-auto max-h-[70vh] w-auto object-contain"
             sizes="(max-width: 896px) 100vw, 896px"
+            unoptimized
           />
         )}
       </div>
@@ -148,6 +149,7 @@ function MediaThumb({ item }: { item: PublicGalleryItem }) {
         fill
         sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
         className="object-cover"
+        unoptimized
       />
     </span>
   );

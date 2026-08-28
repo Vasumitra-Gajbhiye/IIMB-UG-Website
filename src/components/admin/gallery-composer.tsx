@@ -24,7 +24,11 @@ import {
 import { prepareFile, uploadToR2, type StagedMedia } from "@/lib/gallery-client";
 import { cn } from "@/lib/utils";
 
-export function GalleryComposer() {
+export function GalleryComposer({
+  onPosted,
+}: {
+  onPosted?: () => void;
+} = {}) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [items, setItems] = useState<StagedMedia[]>([]);
@@ -207,8 +211,15 @@ export function GalleryComposer() {
     }
 
     for (const item of items) URL.revokeObjectURL(item.previewUrl);
-    router.push("/gallery");
+    setItems([]);
+    setErrors([]);
+    setPosting(false);
     router.refresh();
+    if (onPosted) {
+      onPosted();
+    } else {
+      router.push("/gallery");
+    }
   }
 
   const accept =
