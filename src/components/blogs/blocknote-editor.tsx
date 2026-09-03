@@ -24,7 +24,7 @@ export function BlockNoteEditor({ initialContent, onReady }: Props) {
   }, [editor, onReady]);
 
   return (
-    <div className="bn-editor">
+    <div className="bn-app">
       <BlockNoteView editor={editor} theme="light" />
     </div>
   );

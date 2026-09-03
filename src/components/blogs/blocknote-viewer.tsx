@@ -14,7 +14,7 @@ export function BlockNoteViewer({ content }: { content: unknown }) {
   });
 
   return (
-    <div className="bn-editor">
+    <div className="bn-app">
       <BlockNoteView editor={editor} theme="light" editable={false} />
     </div>
   );

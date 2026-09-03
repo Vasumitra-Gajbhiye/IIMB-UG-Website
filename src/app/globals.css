@@ -135,16 +135,18 @@
   }
 }
 
-/* Isolate BlockNote so its chrome does not restyle the rest of the site. */
-.bn-editor .bn-container {
+/* Isolate BlockNote so its chrome does not restyle the rest of the site.
+   Do not put `bn-editor` on a wrapper — BlockNote's own `.bn-editor` rule
+   adds 54px inline padding for the drag-handle gutter. */
+.bn-app .bn-container {
   --bn-colors-editor-background: transparent;
   background: transparent;
   font-family: inherit;
 }
 
-.bn-editor .bn-editor {
+.bn-app .bn-editor {
   background: transparent;
-  padding-inline: 0;
+  padding-inline: 0 !important;
 }
 
 @page {
@@ -164,9 +166,9 @@
     -webkit-print-color-adjust: exact;
   }
 
-  .bn-editor .bn-side-menu,
-  .bn-editor .bn-drag-handle,
-  .bn-editor [data-floating-ui-portal],
+  .bn-app .bn-side-menu,
+  .bn-app .bn-drag-handle,
+  .bn-app [data-floating-ui-portal],
   .bn-formatting-toolbar,
   .bn-side-menu {
     display: none !important;
