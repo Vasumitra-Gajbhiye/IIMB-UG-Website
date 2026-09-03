@@ -11,15 +11,27 @@ import type { VoteListItem } from "@/components/proposals/vote-list";
 export function FieldStats({
   fields,
   votes,
+  mcqOnly = false,
 }: {
   fields: ProposalFieldDTO[];
   votes: VoteListItem[];
+  mcqOnly?: boolean;
 }) {
-  if (fields.length === 0) return null;
+  const visibleFields = mcqOnly
+    ? fields.filter((field) => field.type !== ProposalFieldType.TEXT)
+    : fields;
+
+  if (visibleFields.length === 0) {
+    return mcqOnly ? (
+      <p className="text-sm text-muted-foreground">
+        No multiple-choice questions.
+      </p>
+    ) : null;
+  }
 
   return (
     <div className="space-y-6">
-      {fields.map((field) => {
+      {visibleFields.map((field) => {
         const responses = votes.map((vote) => ({
           vote,
           value: parseVoteAnswers(vote.answers)[field.id],

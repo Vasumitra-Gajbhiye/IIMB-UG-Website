@@ -8,6 +8,7 @@ import { ProposalActions } from "@/components/admin/proposal-actions";
 import { FieldStats } from "@/components/proposals/field-stats";
 import { ProposalStatusBadge } from "@/components/proposals/proposal-status-badge";
 import { VoteList } from "@/components/proposals/vote-list";
+import { VoteSummaryStats } from "@/components/proposals/vote-summary-stats";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { requireMod } from "@/lib/auth";
@@ -68,21 +69,12 @@ export default async function ProposalStatsPage({ params }: Props) {
         />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Stat label="Votes" value={String(proposal.votes.length)} />
-        <Stat
-          label="Named / anonymous"
-          value={`${namedCount} / ${anonymousCount}`}
-        />
-        <Stat
-          label="Participation"
-          value={
-            allowlistedCount === 0
-              ? "—"
-              : `${proposal.votes.length} / ${allowlistedCount}`
-          }
-        />
-      </div>
+      <VoteSummaryStats
+        voteCount={proposal.votes.length}
+        namedCount={namedCount}
+        anonymousCount={anonymousCount}
+        allowlistedCount={allowlistedCount}
+      />
 
       <section>
         <h2 className="font-serif text-2xl font-semibold tracking-tight">
@@ -110,17 +102,6 @@ export default async function ProposalStatsPage({ params }: Props) {
           />
         </div>
       </section>
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-border p-4">
-      <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="mt-1 font-serif text-3xl font-semibold tabular-nums">
-        {value}
-      </p>
     </div>
   );
 }

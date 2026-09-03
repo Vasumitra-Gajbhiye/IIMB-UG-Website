@@ -146,3 +146,29 @@
   background: transparent;
   padding-inline: 0;
 }
+
+@page {
+  size: A4;
+  margin: 16mm;
+}
+
+@media print {
+  html,
+  body {
+    background: white !important;
+    color: black;
+  }
+
+  * {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .bn-editor .bn-side-menu,
+  .bn-editor .bn-drag-handle,
+  .bn-editor [data-floating-ui-portal],
+  .bn-formatting-toolbar,
+  .bn-side-menu {
+    display: none !important;
+  }
+}
