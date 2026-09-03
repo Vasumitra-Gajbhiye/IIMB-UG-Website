@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
 
+import { GalleryAlbumList } from "@/components/admin/gallery-album-list";
 import { GalleryComposer } from "@/components/admin/gallery-composer";
 import { GalleryPostList } from "@/components/admin/gallery-post-list";
 import { requireAllowlisted } from "@/lib/auth";
-import { listAdminGalleryPosts } from "@/lib/queries/gallery";
+import {
+  listAdminGalleryAlbums,
+  listAdminGalleryPosts,
+} from "@/lib/queries/gallery";
 
 export const metadata: Metadata = {
   title: "Gallery",
@@ -11,10 +15,16 @@ export const metadata: Metadata = {
 
 export default async function AdminGalleryPage() {
   const session = await requireAllowlisted();
-  const posts = await listAdminGalleryPosts({
-    authorId: session.id,
-    isMod: session.isMod,
-  });
+  const [posts, albums] = await Promise.all([
+    listAdminGalleryPosts({
+      authorId: session.id,
+      isMod: session.isMod,
+    }),
+    listAdminGalleryAlbums({
+      authorId: session.id,
+      isMod: session.isMod,
+    }),
+  ]);
 
   return (
     <div>
@@ -35,6 +45,15 @@ export default async function AdminGalleryPage() {
         </h2>
         <div className="mt-4">
           <GalleryPostList posts={posts} isMod={session.isMod} />
+        </div>
+      </section>
+
+      <section className="mt-12">
+        <h2 className="text-sm font-medium tracking-wide text-muted-foreground uppercase">
+          {session.isMod ? "All albums" : "Your albums"}
+        </h2>
+        <div className="mt-4">
+          <GalleryAlbumList albums={albums} isMod={session.isMod} />
         </div>
       </section>
     </div>

@@ -6,12 +6,16 @@ import { z } from "zod";
 import { GalleryItemKind } from "@/generated/prisma/client";
 import { requireAllowlisted } from "@/lib/auth";
 import {
+  ALBUM_NAME_MAX_LENGTH,
   CAPTION_MAX_LENGTH,
   IMAGE_MAX_BYTES,
+  MAX_ALBUM_DATE_SPANS,
   MAX_FILES_PER_POST,
   VIDEO_MAX_BYTES,
   checkFile,
+  dateInputToTakenAt,
   extFromMime,
+  isDateInput,
   isHeicMime,
 } from "@/lib/gallery";
 import { prisma } from "@/lib/prisma";
@@ -46,6 +50,11 @@ export type GalleryItemInput = {
   kind: "IMAGE" | "VIDEO";
 };
 
+export type AlbumDateSpanInput = {
+  startOn: string;
+  endOn: string;
+};
+
 const presignSchema = z.object({
   files: z
     .array(
@@ -71,9 +80,96 @@ const itemSchema = z.object({
   kind: z.enum(["IMAGE", "VIDEO"]),
 });
 
-function revalidateGallery() {
+const spanSchema = z
+  .object({
+    startOn: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "Enter a valid start date."),
+    endOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Enter a valid end date."),
+  })
+  .refine((span) => span.endOn >= span.startOn, {
+    message: "End date must be on or after the start date.",
+  });
+
+const albumNameSchema = z
+  .string()
+  .trim()
+  .min(1, "Album name is required.")
+  .max(
+    ALBUM_NAME_MAX_LENGTH,
+    `Name must be ${ALBUM_NAME_MAX_LENGTH} characters or fewer.`,
+  );
+
+function revalidateGallery(albumId?: string) {
   revalidatePath("/gallery");
+  revalidatePath("/gallery/albums", "layout");
   revalidatePath("/admin/gallery");
+  if (albumId) revalidatePath(`/gallery/albums/${albumId}`);
+}
+
+function takenAtToDay(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+}
+
+function acceptGalleryItems(
+  items: GalleryItemInput[],
+  userId: string,
+): z.infer<typeof itemSchema>[] {
+  const accepted: z.infer<typeof itemSchema>[] = [];
+  const prefix = `gallery/${userId}/`;
+
+  for (const raw of items) {
+    const parsed = itemSchema.safeParse(raw);
+    if (!parsed.success) continue;
+
+    const check = checkFile({
+      name: `upload.${extFromMime(parsed.data.contentType) ?? "bin"}`,
+      type: parsed.data.contentType,
+      size: parsed.data.sizeBytes,
+    });
+    if (!check.ok) continue;
+    if (isHeicMime(parsed.data.contentType)) continue;
+    if (check.kind !== parsed.data.kind) continue;
+    if (!parsed.data.key.startsWith(prefix)) continue;
+
+    try {
+      if (parsed.data.url !== publicUrlForKey(parsed.data.key)) continue;
+    } catch {
+      continue;
+    }
+
+    const takenAt = new Date(parsed.data.takenAt);
+    if (Number.isNaN(takenAt.getTime())) continue;
+    if (!isDateInput(takenAtToDay(parsed.data.takenAt))) continue;
+
+    const max =
+      check.kind === "VIDEO" ? VIDEO_MAX_BYTES : IMAGE_MAX_BYTES;
+    if (parsed.data.sizeBytes > max) continue;
+
+    accepted.push(parsed.data);
+  }
+
+  return accepted;
+}
+
+function itemCreateData(item: z.infer<typeof itemSchema>) {
+  return {
+    kind:
+      item.kind === "VIDEO"
+        ? GalleryItemKind.VIDEO
+        : GalleryItemKind.IMAGE,
+    key: item.key,
+    url: item.url,
+    contentType: item.contentType,
+    sizeBytes: item.sizeBytes,
+    width: item.width ?? null,
+    height: item.height ?? null,
+    caption: item.caption?.trim() || null,
+    takenAt: new Date(item.takenAt),
+    sortOrder: item.sortOrder,
+  };
 }
 
 export async function presignGalleryUploads(
@@ -137,38 +233,7 @@ export async function createGalleryPost(
     };
   }
 
-  const accepted: z.infer<typeof itemSchema>[] = [];
-  const prefix = `gallery/${session.id}/`;
-
-  for (const raw of items) {
-    const parsed = itemSchema.safeParse(raw);
-    if (!parsed.success) continue;
-
-    const check = checkFile({
-      name: `upload.${extFromMime(parsed.data.contentType) ?? "bin"}`,
-      type: parsed.data.contentType,
-      size: parsed.data.sizeBytes,
-    });
-    if (!check.ok) continue;
-    if (isHeicMime(parsed.data.contentType)) continue;
-    if (check.kind !== parsed.data.kind) continue;
-    if (!parsed.data.key.startsWith(prefix)) continue;
-
-    try {
-      if (parsed.data.url !== publicUrlForKey(parsed.data.key)) continue;
-    } catch {
-      continue;
-    }
-
-    const takenAt = new Date(parsed.data.takenAt);
-    if (Number.isNaN(takenAt.getTime())) continue;
-
-    const max =
-      check.kind === "VIDEO" ? VIDEO_MAX_BYTES : IMAGE_MAX_BYTES;
-    if (parsed.data.sizeBytes > max) continue;
-
-    accepted.push(parsed.data);
-  }
+  const accepted = acceptGalleryItems(items, session.id);
 
   if (accepted.length === 0) {
     return { ok: false, error: "No valid files to publish." };
@@ -179,21 +244,7 @@ export async function createGalleryPost(
       data: {
         authorId: session.id,
         items: {
-          create: accepted.map((item) => ({
-            kind:
-              item.kind === "VIDEO"
-                ? GalleryItemKind.VIDEO
-                : GalleryItemKind.IMAGE,
-            key: item.key,
-            url: item.url,
-            contentType: item.contentType,
-            sizeBytes: item.sizeBytes,
-            width: item.width ?? null,
-            height: item.height ?? null,
-            caption: item.caption?.trim() || null,
-            takenAt: new Date(item.takenAt),
-            sortOrder: item.sortOrder,
-          })),
+          create: accepted.map((item) => itemCreateData(item)),
         },
       },
     });
@@ -207,6 +258,148 @@ export async function createGalleryPost(
   }
 
   revalidateGallery();
+  return { ok: true };
+}
+
+export async function createGalleryAlbum(input: {
+  name: string;
+  spans: AlbumDateSpanInput[];
+  items: GalleryItemInput[];
+}): Promise<GalleryActionState> {
+  const session = await requireAllowlisted();
+
+  const name = albumNameSchema.safeParse(input.name);
+  if (!name.success) {
+    return {
+      ok: false,
+      error: name.error.issues[0]?.message ?? "Album name is required.",
+    };
+  }
+
+  if (input.spans.length === 0) {
+    return { ok: false, error: "Add at least one date." };
+  }
+  if (input.spans.length > MAX_ALBUM_DATE_SPANS) {
+    return {
+      ok: false,
+      error: `At most ${MAX_ALBUM_DATE_SPANS} date entries per album.`,
+    };
+  }
+
+  const spans: AlbumDateSpanInput[] = [];
+  for (const raw of input.spans) {
+    const parsed = spanSchema.safeParse(raw);
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: parsed.error.issues[0]?.message ?? "Invalid album dates.",
+      };
+    }
+    spans.push(parsed.data);
+  }
+
+  if (input.items.length === 0) {
+    return { ok: false, error: "Nothing uploaded successfully." };
+  }
+  if (input.items.length > MAX_FILES_PER_POST) {
+    return {
+      ok: false,
+      error: `At most ${MAX_FILES_PER_POST} files per album.`,
+    };
+  }
+
+  const accepted = acceptGalleryItems(input.items, session.id);
+  if (accepted.length === 0) {
+    return { ok: false, error: "No valid files to publish. Each file needs a date." };
+  }
+
+  try {
+    const album = await prisma.galleryAlbum.create({
+      data: {
+        name: name.data,
+        authorId: session.id,
+        dateSpans: {
+          create: spans.map((span) => ({
+            startOn: dateInputToTakenAt(span.startOn),
+            endOn: dateInputToTakenAt(span.endOn),
+          })),
+        },
+        items: {
+          create: accepted.map((item) => itemCreateData(item)),
+        },
+      },
+    });
+    revalidateGallery(album.id);
+  } catch {
+    try {
+      await deleteGalleryObjects(accepted.map((item) => item.key));
+    } catch {
+      // Objects may remain in R2; they are unused without a DB row.
+    }
+    return { ok: false, error: "Could not save the album." };
+  }
+
+  return { ok: true };
+}
+
+export async function renameGalleryAlbum(
+  id: string,
+  name: string,
+): Promise<GalleryActionState> {
+  const session = await requireAllowlisted();
+  const albumId = z.string().uuid().safeParse(id);
+  if (!albumId.success) return { ok: false, error: "Invalid album." };
+
+  const parsedName = albumNameSchema.safeParse(name);
+  if (!parsedName.success) {
+    return {
+      ok: false,
+      error: parsedName.error.issues[0]?.message ?? "Album name is required.",
+    };
+  }
+
+  const album = await prisma.galleryAlbum.findUnique({
+    where: { id: albumId.data },
+    select: { id: true, authorId: true },
+  });
+  if (!album) return { ok: false, error: "Album not found." };
+  if (album.authorId !== session.id && !session.isMod) {
+    return { ok: false, error: "You cannot rename this album." };
+  }
+
+  await prisma.galleryAlbum.update({
+    where: { id: album.id },
+    data: { name: parsedName.data },
+  });
+  revalidateGallery(album.id);
+  return { ok: true };
+}
+
+export async function deleteGalleryAlbum(
+  _prev: GalleryActionState,
+  formData: FormData,
+): Promise<GalleryActionState> {
+  const session = await requireAllowlisted();
+  const id = z.string().uuid().safeParse(formData.get("id"));
+  if (!id.success) return { ok: false, error: "Invalid album." };
+
+  const album = await prisma.galleryAlbum.findUnique({
+    where: { id: id.data },
+    include: { items: { select: { key: true } } },
+  });
+  if (!album) return { ok: false, error: "Album not found." };
+  if (album.authorId !== session.id && !session.isMod) {
+    return { ok: false, error: "You cannot delete this album." };
+  }
+
+  try {
+    await deleteGalleryObjects(album.items.map((item) => item.key));
+  } catch {
+    return { ok: false, error: "Could not remove files from storage." };
+  }
+
+  await prisma.galleryAlbum.delete({ where: { id: album.id } });
+  revalidateGallery(album.id);
   return { ok: true };
 }
 
@@ -248,10 +441,16 @@ export async function deleteGalleryItem(
 
   const item = await prisma.galleryItem.findUnique({
     where: { id: id.data },
-    include: { post: { select: { id: true, authorId: true } } },
+    include: {
+      post: { select: { id: true, authorId: true } },
+      album: { select: { id: true, authorId: true } },
+    },
   });
   if (!item) return { ok: false, error: "Item not found." };
-  if (item.post.authorId !== session.id && !session.isMod) {
+
+  const ownerId = item.post?.authorId ?? item.album?.authorId;
+  if (!ownerId) return { ok: false, error: "Item not found." };
+  if (ownerId !== session.id && !session.isMod) {
     return { ok: false, error: "You cannot delete this item." };
   }
 
@@ -263,13 +462,15 @@ export async function deleteGalleryItem(
 
   await prisma.galleryItem.delete({ where: { id: item.id } });
 
-  const remaining = await prisma.galleryItem.count({
-    where: { postId: item.post.id },
-  });
-  if (remaining === 0) {
-    await prisma.galleryPost.delete({ where: { id: item.post.id } });
+  if (item.postId) {
+    const remaining = await prisma.galleryItem.count({
+      where: { postId: item.postId },
+    });
+    if (remaining === 0) {
+      await prisma.galleryPost.delete({ where: { id: item.postId } });
+    }
   }
 
-  revalidateGallery();
+  revalidateGallery(item.albumId ?? undefined);
   return { ok: true };
 }

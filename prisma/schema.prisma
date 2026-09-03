@@ -55,6 +55,7 @@ model User {
   authoredProposals Proposal[] @relation("ProposalAuthor")
   votes             ProposalVote[]
   galleryPosts      GalleryPost[]
+  galleryAlbums     GalleryAlbum[]
 }
 
 model AllowedEmail {
@@ -207,8 +208,10 @@ model GalleryPost {
 
 model GalleryItem {
   id          String          @id @default(uuid())
-  postId      String
-  post        GalleryPost     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId      String?
+  post        GalleryPost?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  albumId     String?
+  album       GalleryAlbum?   @relation(fields: [albumId], references: [id], onDelete: Cascade)
   kind        GalleryItemKind
   key         String
   url         String
@@ -224,4 +227,31 @@ model GalleryItem {
 
   @@index([takenAt])
   @@index([postId, sortOrder])
+  @@index([albumId, sortOrder])
+}
+
+model GalleryAlbum {
+  id        String                 @id @default(uuid())
+  name      String
+  authorId  String
+  author    User                   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  items     GalleryItem[]
+  dateSpans GalleryAlbumDateSpan[]
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
+
+  @@index([authorId, createdAt])
+}
+
+model GalleryAlbumDateSpan {
+  id        String       @id @default(uuid())
+  albumId   String
+  album     GalleryAlbum @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  startOn   DateTime
+  endOn     DateTime
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@index([albumId])
+  @@index([startOn, endOn])
 }

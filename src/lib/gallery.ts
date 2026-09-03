@@ -2,7 +2,10 @@ export const IMAGE_MAX_BYTES = 25 * 1024 * 1024;
 export const VIDEO_MAX_BYTES = 200 * 1024 * 1024;
 export const MAX_FILES_PER_POST = 40;
 export const CAPTION_MAX_LENGTH = 500;
+export const ALBUM_NAME_MAX_LENGTH = 80;
+export const MAX_ALBUM_DATE_SPANS = 20;
 export const GALLERY_TZ = "Asia/Kolkata";
+export const DATE_INPUT_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export const IMAGE_MIME_TYPES = [
   "image/jpeg",
@@ -159,13 +162,17 @@ export function formatGalleryDate(date: Date): string {
   });
 }
 
+export function isDateInput(value: string): boolean {
+  return DATE_INPUT_RE.test(value.trim());
+}
+
 export function resolveTakenAt(options: {
   userDate?: string | null;
   metadataDate?: Date | null;
   lastModified?: number | null;
 }): Date {
   const user = options.userDate?.trim();
-  if (user && /^\d{4}-\d{2}-\d{2}$/.test(user)) {
+  if (user && isDateInput(user)) {
     return dateInputToTakenAt(user);
   }
   if (options.metadataDate && !Number.isNaN(options.metadataDate.getTime())) {
@@ -175,4 +182,58 @@ export function resolveTakenAt(options: {
     return new Date(options.lastModified);
   }
   return new Date();
+}
+
+function addCalendarDay(yyyyMmDd: string): string {
+  const next = new Date(
+    dateInputToTakenAt(yyyyMmDd).getTime() + 24 * 60 * 60 * 1000,
+  );
+  return galleryDayKey(next);
+}
+
+export function expandAlbumDayKeys(
+  spans: { startOn: Date | string; endOn: Date | string }[],
+): string[] {
+  const keys = new Set<string>();
+  for (const span of spans) {
+    const startKey = galleryDayKey(new Date(span.startOn));
+    const endKey = galleryDayKey(new Date(span.endOn));
+    if (endKey < startKey) continue;
+    let current = startKey;
+    let guard = 0;
+    while (current <= endKey && guard < 3660) {
+      keys.add(current);
+      current = addCalendarDay(current);
+      guard += 1;
+    }
+  }
+  return [...keys].sort((a, b) => (a < b ? 1 : a > b ? -1 : 0));
+}
+
+export function formatAlbumSpan(
+  startOn: Date | string,
+  endOn: Date | string,
+): string {
+  const start = new Date(startOn);
+  const end = new Date(endOn);
+  if (galleryDayKey(start) === galleryDayKey(end)) {
+    return formatGalleryDate(start);
+  }
+  return `${formatGalleryDate(start)} – ${formatGalleryDate(end)}`;
+}
+
+export function pickAlbumCover<T extends { kind: GalleryKind }>(
+  items: T[],
+): T | null {
+  return items.find((item) => item.kind === "IMAGE") ?? items[0] ?? null;
+}
+
+export function listedAuthor(
+  student:
+    | { name: string; slug: string; isListed: boolean }
+    | null
+    | undefined,
+): { authorName: string | null; authorSlug: string | null } {
+  if (!student?.isListed) return { authorName: null, authorSlug: null };
+  return { authorName: student.name, authorSlug: student.slug };
 }

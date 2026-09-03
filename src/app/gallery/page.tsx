@@ -1,23 +1,34 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
 import { GalleryAddButton } from "@/components/gallery/gallery-add-button";
-import { GalleryMasonry } from "@/components/gallery/gallery-masonry";
+import { GalleryFeed } from "@/components/gallery/gallery-feed";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ensureUser } from "@/lib/auth";
-import { listPublicGalleryItems } from "@/lib/queries/gallery";
+import {
+  listedAuthor,
+  pickAlbumCover,
+} from "@/lib/gallery";
+import {
+  listPublicGalleryAlbums,
+  listPublicGalleryItems,
+} from "@/lib/queries/gallery";
 
 export const metadata: Metadata = {
   title: "Gallery",
 };
 
 export default async function GalleryPage() {
-  const [session, rows] = await Promise.all([
+  const [session, rows, albumRows] = await Promise.all([
     ensureUser(),
     listPublicGalleryItems(),
+    listPublicGalleryAlbums(),
   ]);
 
   const items = rows.map((row) => {
-    const student = row.post.author.student;
-    const listed = student?.isListed ? student : null;
+    const author = listedAuthor(
+      (row.post?.author ?? row.album?.author)?.student,
+    );
     return {
       id: row.id,
       kind: row.kind,
@@ -26,8 +37,29 @@ export default async function GalleryPage() {
       takenAt: row.takenAt,
       width: row.width,
       height: row.height,
-      authorName: listed?.name ?? null,
-      authorSlug: listed?.slug ?? null,
+      albumId: row.albumId,
+      ...author,
+    };
+  });
+
+  const albums = albumRows.map((album) => {
+    const cover = pickAlbumCover(album.items);
+    return {
+      id: album.id,
+      name: album.name,
+      dateSpans: album.dateSpans.map((span) => ({
+        startOn: span.startOn,
+        endOn: span.endOn,
+      })),
+      cover: cover
+        ? {
+            kind: cover.kind,
+            url: cover.url,
+            caption: cover.caption,
+            width: cover.width,
+            height: cover.height,
+          }
+        : null,
     };
   });
 
@@ -46,18 +78,25 @@ export default async function GalleryPage() {
         {session?.isAllowlisted ? <GalleryAddButton /> : null}
       </div>
 
-      {items.length === 0 ? (
-        <p className="mt-12 text-muted-foreground">
-          Nothing here yet.
-          {session?.isAllowlisted
-            ? " Add the first photos."
-            : " Check back after the batch starts posting."}
-        </p>
-      ) : (
-        <div className="mt-10">
-          <GalleryMasonry items={items} />
-        </div>
-      )}
+      <Suspense fallback={<GalleryFeedFallback />}>
+        <GalleryFeed
+          items={items}
+          albums={albums}
+          isAllowlisted={Boolean(session?.isAllowlisted)}
+        />
+      </Suspense>
+    </div>
+  );
+}
+
+function GalleryFeedFallback() {
+  return (
+    <div className="mt-6 space-y-8">
+      <div className="flex gap-2">
+        <Skeleton className="h-7 w-24" />
+        <Skeleton className="h-7 w-24" />
+      </div>
+      <Skeleton className="h-6 w-48" />
     </div>
   );
 }

@@ -12,7 +12,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { formatGalleryDate, formatGalleryDay, galleryDayKey } from "@/lib/gallery";
+import {
+  dateInputToTakenAt,
+  expandAlbumDayKeys,
+  formatGalleryDate,
+  formatGalleryDay,
+  galleryDayKey,
+} from "@/lib/gallery";
 
 export type PublicGalleryItem = {
   id: string;
@@ -24,11 +30,51 @@ export type PublicGalleryItem = {
   height: number | null;
   authorName: string | null;
   authorSlug: string | null;
+  albumId: string | null;
 };
 
-export function GalleryMasonry({ items }: { items: PublicGalleryItem[] }) {
+export type PublicGalleryAlbum = {
+  id: string;
+  name: string;
+  dateSpans: { startOn: Date | string; endOn: Date | string }[];
+  cover: {
+    kind: "IMAGE" | "VIDEO";
+    url: string;
+    caption: string | null;
+    width: number | null;
+    height: number | null;
+  } | null;
+};
+
+export type GalleryMasonryMode = "mixed" | "photos" | "albums";
+
+type ItemTile = {
+  type: "item";
+  id: string;
+  dayKey: string;
+  item: PublicGalleryItem;
+};
+
+type AlbumTile = {
+  type: "album";
+  id: string;
+  dayKey: string;
+  album: PublicGalleryAlbum;
+};
+
+type GalleryTile = ItemTile | AlbumTile;
+
+export function GalleryMasonry({
+  items,
+  albums = [],
+  mode = "mixed",
+}: {
+  items: PublicGalleryItem[];
+  albums?: PublicGalleryAlbum[];
+  mode?: GalleryMasonryMode;
+}) {
   const [activeId, setActiveId] = useState<string | null>(null);
-  const groups = groupByDay(items);
+  const groups = groupTiles(buildTiles(items, albums, mode));
   const active = items.find((item) => item.id === activeId) ?? null;
 
   return (
@@ -40,16 +86,26 @@ export function GalleryMasonry({ items }: { items: PublicGalleryItem[] }) {
               {group.label}
             </h2>
             <div className="mt-4 columns-2 gap-3 sm:columns-3 lg:columns-4">
-              {group.items.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setActiveId(item.id)}
-                  className="mb-3 block w-full cursor-pointer break-inside-avoid overflow-hidden rounded-xl border-0 bg-transparent p-0 text-left ring-1 ring-foreground/10 transition hover:ring-primary/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                >
-                  <MediaThumb item={item} />
-                </button>
-              ))}
+              {group.tiles.map((tile) =>
+                tile.type === "album" ? (
+                  <Link
+                    key={tile.id}
+                    href={`/gallery/albums/${tile.album.id}`}
+                    className="mb-3 block w-full break-inside-avoid overflow-hidden rounded-xl ring-1 ring-foreground/10 transition hover:ring-primary/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                  >
+                    <AlbumCard album={tile.album} />
+                  </Link>
+                ) : (
+                  <button
+                    key={tile.id}
+                    type="button"
+                    onClick={() => setActiveId(tile.item.id)}
+                    className="mb-3 block w-full cursor-pointer break-inside-avoid overflow-hidden rounded-xl border-0 bg-transparent p-0 text-left ring-1 ring-foreground/10 transition hover:ring-primary/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                  >
+                    <MediaThumb item={tile.item} />
+                  </button>
+                ),
+              )}
             </div>
           </section>
         ))}
@@ -59,6 +115,37 @@ export function GalleryMasonry({ items }: { items: PublicGalleryItem[] }) {
         {active ? <GalleryLightbox item={active} /> : null}
       </Dialog>
     </>
+  );
+}
+
+function AlbumCard({ album }: { album: PublicGalleryAlbum }) {
+  const cover = album.cover;
+
+  return (
+    <span className="relative block aspect-video w-full overflow-hidden bg-muted">
+      {cover?.kind === "VIDEO" ? (
+        <video
+          src={cover.url}
+          className="size-full object-cover"
+          muted
+          playsInline
+          preload="metadata"
+        />
+      ) : cover ? (
+        <Image
+          src={cover.url}
+          alt=""
+          fill
+          sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+          className="object-cover"
+          unoptimized
+        />
+      ) : null}
+      <span className="absolute inset-0 bg-white/60" />
+      <span className="absolute inset-x-0 top-0 p-3 font-serif text-base font-semibold tracking-tight text-foreground sm:text-lg">
+        {album.name}
+      </span>
+    </span>
   );
 }
 
@@ -155,26 +242,57 @@ function MediaThumb({ item }: { item: PublicGalleryItem }) {
   );
 }
 
-function groupByDay(items: PublicGalleryItem[]) {
-  const groups: { key: string; label: string; items: PublicGalleryItem[] }[] =
-    [];
-  const index = new Map<string, number>();
+function buildTiles(
+  items: PublicGalleryItem[],
+  albums: PublicGalleryAlbum[],
+  mode: GalleryMasonryMode,
+): GalleryTile[] {
+  const tiles: GalleryTile[] = [];
 
-  for (const item of items) {
-    const date = new Date(item.takenAt);
-    const key = galleryDayKey(date);
-    const existing = index.get(key);
-    if (existing == null) {
-      index.set(key, groups.length);
-      groups.push({
-        key,
-        label: formatGalleryDay(date),
-        items: [item],
+  if (mode !== "albums") {
+    const source =
+      mode === "photos" ? items : items.filter((item) => !item.albumId);
+    for (const item of source) {
+      tiles.push({
+        type: "item",
+        id: item.id,
+        dayKey: galleryDayKey(new Date(item.takenAt)),
+        item,
       });
-    } else {
-      groups[existing].items.push(item);
     }
   }
 
-  return groups;
+  if (mode !== "photos") {
+    for (const album of albums) {
+      for (const dayKey of expandAlbumDayKeys(album.dateSpans)) {
+        tiles.push({
+          type: "album",
+          id: `${album.id}-${dayKey}`,
+          dayKey,
+          album,
+        });
+      }
+    }
+  }
+
+  return tiles;
+}
+
+function groupTiles(tiles: GalleryTile[]) {
+  const groups = new Map<string, GalleryTile[]>();
+  for (const tile of tiles) {
+    const list = groups.get(tile.dayKey);
+    if (list) list.push(tile);
+    else groups.set(tile.dayKey, [tile]);
+  }
+
+  const keys = [...groups.keys()].sort((a, b) => (a < b ? 1 : a > b ? -1 : 0));
+  return keys.map((key) => ({
+    key,
+    label: formatGalleryDay(dateInputToTakenAt(key)),
+    tiles: (groups.get(key) ?? []).sort((a, b) => {
+      if (a.type === b.type) return 0;
+      return a.type === "album" ? -1 : 1;
+    }),
+  }));
 }
