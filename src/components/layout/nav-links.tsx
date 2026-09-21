@@ -11,6 +11,7 @@ type NavLinksProps = {
   onNavigate?: () => void;
   orientation?: "horizontal" | "vertical";
   showProposals?: boolean;
+  showAdmin?: boolean;
 };
 
 export function NavLinks({
@@ -18,10 +19,13 @@ export function NavLinks({
   onNavigate,
   orientation = "horizontal",
   showProposals = false,
+  showAdmin = false,
 }: NavLinksProps) {
   const pathname = usePathname();
   const links = NAV_LINKS.filter(
-    (link) => link.href !== "/proposals" || showProposals,
+    (link) =>
+      (link.href !== "/proposals" || showProposals) &&
+      (link.href !== "/admin" || showAdmin),
   );
 
   return (
