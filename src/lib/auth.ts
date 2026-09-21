@@ -165,6 +165,22 @@ export async function requireMod(): Promise<SessionUser> {
   return session;
 }
 
+/**
+ * Require that the user may manage this proposal: its creator or a mod.
+ * Anyone else is sent back to /proposals.
+ */
+export async function requireProposalManager(proposalId: string) {
+  const session = await requireAllowlisted({ redirectTo: "/not-allowlisted" });
+  const proposal = await prisma.proposal.findUnique({
+    where: { id: proposalId },
+  });
+  if (!proposal) return { session, proposal: null };
+  if (!session.isMod && proposal.createdById !== session.id) {
+    redirect("/proposals");
+  }
+  return { session, proposal };
+}
+
 /** Ensure env super-admins exist as AllowedEmail rows (display + seed safety). */
 export async function ensureEnvSuperAdminsInAllowlist(): Promise<void> {
   const emails = getSuperAdminEmails();

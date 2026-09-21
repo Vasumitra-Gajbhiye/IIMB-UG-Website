@@ -9,9 +9,14 @@ import {
   ProposalFieldType,
   ProposalStatus,
 } from "@/generated/prisma/client";
-import { requireAllowlisted, requireMod } from "@/lib/auth";
+import { requireAllowlisted, requireProposalManager } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { parseVoteAnswers, type VoteAnswers } from "@/lib/proposals";
+import {
+  effectiveStatus,
+  parseIstDateTime,
+  parseVoteAnswers,
+  type VoteAnswers,
+} from "@/lib/proposals";
 import { uniqueProposalSlug } from "@/lib/slug";
 
 export type ProposalActionState = {
@@ -25,8 +30,15 @@ function revalidateProposal(slug: string) {
   revalidatePath("/admin/proposals");
 }
 
+function revalidateManage(id: string) {
+  revalidatePath("/proposals");
+  revalidatePath("/admin/proposals");
+  revalidatePath(`/admin/proposals/${id}`);
+  revalidatePath(`/proposals/manage/${id}`);
+}
+
 export async function createProposal() {
-  const session = await requireMod();
+  const session = await requireAllowlisted({ redirectTo: "/not-allowlisted" });
   const slug = await uniqueProposalSlug("untitled");
   const proposal = await prisma.proposal.create({
     data: {
@@ -35,15 +47,13 @@ export async function createProposal() {
       createdById: session.id,
     },
   });
-  redirect(`/admin/proposals/${proposal.id}/edit`);
+  redirect(`/proposals/manage/${proposal.id}/edit`);
 }
 
 export async function saveProposalBlog(
   _prev: ProposalActionState,
   formData: FormData,
 ): Promise<ProposalActionState> {
-  await requireMod();
-
   const parsed = z
     .object({
       id: z.string().uuid(),
@@ -71,9 +81,7 @@ export async function saveProposalBlog(
     return { ok: false, error: "Invalid editor content." };
   }
 
-  const existing = await prisma.proposal.findUnique({
-    where: { id: parsed.data.id },
-  });
+  const { proposal: existing } = await requireProposalManager(parsed.data.id);
   if (!existing) return { ok: false, error: "Proposal not found." };
 
   const slug =
@@ -90,7 +98,7 @@ export async function saveProposalBlog(
     },
   });
 
-  revalidatePath("/admin/proposals");
+  revalidateManage(existing.id);
   revalidatePath(`/admin/proposals/${existing.id}/edit`);
   if (existing.status !== ProposalStatus.DRAFT) {
     revalidateProposal(slug);
@@ -109,10 +117,9 @@ export async function saveProposalForm(
   _prev: ProposalActionState,
   formData: FormData,
 ): Promise<ProposalActionState> {
-  await requireMod();
-
   const idParsed = z.string().uuid().safeParse(formData.get("id"));
   if (!idParsed.success) return { ok: false, error: "Invalid proposal." };
+  await requireProposalManager(idParsed.data);
 
   let fieldsRaw: unknown;
   try {
@@ -168,7 +175,7 @@ export async function saveProposalForm(
     });
   });
 
-  revalidatePath("/admin/proposals");
+  revalidateManage(proposal.id);
   revalidatePath(`/admin/proposals/${proposal.id}/form`);
   return { ok: true };
 }
@@ -177,16 +184,25 @@ export async function publishProposal(
   _prev: ProposalActionState,
   formData: FormData,
 ): Promise<ProposalActionState> {
-  await requireMod();
-
   const idParsed = z.string().uuid().safeParse(formData.get("id"));
   if (!idParsed.success) return { ok: false, error: "Invalid proposal." };
+  const { session } = await requireProposalManager(idParsed.data);
 
   const proposal = await prisma.proposal.findUnique({
     where: { id: idParsed.data },
     include: { fields: true },
   });
   if (!proposal) return { ok: false, error: "Proposal not found." };
+
+  const closesAtRaw = String(formData.get("closesAt") ?? "").trim();
+  let closesAt: Date | null = null;
+  if (closesAtRaw) {
+    closesAt = parseIstDateTime(closesAtRaw);
+    if (!closesAt) return { ok: false, error: "Invalid close date." };
+    if (closesAt.getTime() <= Date.now()) {
+      return { ok: false, error: "Close date must be in the future." };
+    }
+  }
   if (proposal.status !== ProposalStatus.DRAFT) {
     return { ok: false, error: "Only drafts can be published." };
   }
@@ -204,22 +220,27 @@ export async function publishProposal(
     data: {
       status: ProposalStatus.PUBLISHED,
       publishedAt: new Date(),
+      closesAt,
       slug,
     },
   });
 
   revalidateProposal(slug);
-  redirect(`/admin/proposals/${proposal.id}`);
+  revalidateManage(proposal.id);
+  redirect(
+    session.isMod
+      ? `/admin/proposals/${proposal.id}`
+      : `/proposals/manage/${proposal.id}`,
+  );
 }
 
 export async function closeProposal(
   _prev: ProposalActionState,
   formData: FormData,
 ): Promise<ProposalActionState> {
-  await requireMod();
-
   const idParsed = z.string().uuid().safeParse(formData.get("id"));
   if (!idParsed.success) return { ok: false, error: "Invalid proposal." };
+  await requireProposalManager(idParsed.data);
 
   const proposal = await prisma.proposal.findUnique({
     where: { id: idParsed.data },
@@ -238,15 +259,14 @@ export async function closeProposal(
   });
 
   revalidateProposal(proposal.slug);
-  revalidatePath(`/admin/proposals/${proposal.id}`);
+  revalidateManage(proposal.id);
   return { ok: true };
 }
 
 export async function deleteProposal(formData: FormData) {
-  await requireMod();
-
   const idParsed = z.string().uuid().safeParse(formData.get("id"));
   if (!idParsed.success) return;
+  const { session } = await requireProposalManager(idParsed.data);
 
   const proposal = await prisma.proposal.findUnique({
     where: { id: idParsed.data },
@@ -256,7 +276,7 @@ export async function deleteProposal(formData: FormData) {
 
   await prisma.proposal.delete({ where: { id: proposal.id } });
   revalidateProposal(proposal.slug);
-  redirect("/admin/proposals");
+  redirect(session.isMod ? "/admin/proposals" : "/proposals");
 }
 
 function validateAnswers(
@@ -322,7 +342,7 @@ export async function submitVote(
     where: { id: parsed.data.proposalId },
     include: { fields: { orderBy: { sortOrder: "asc" } } },
   });
-  if (!proposal || proposal.status !== ProposalStatus.PUBLISHED) {
+  if (!proposal || effectiveStatus(proposal) !== ProposalStatus.PUBLISHED) {
     return { ok: false, error: "This proposal is not open for voting." };
   }
 

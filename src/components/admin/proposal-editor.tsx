@@ -24,7 +24,9 @@ function SaveButton() {
 
 export function ProposalEditor({
   proposal,
+  basePath = "/admin/proposals",
 }: {
+  basePath?: string;
   proposal: {
     id: string;
     title: string;
@@ -41,7 +43,9 @@ export function ProposalEditor({
     <div className="space-y-4">
       <div className="sticky top-14 z-20 -mx-1 flex flex-wrap items-center gap-2 border-b border-border bg-background/95 py-3 backdrop-blur">
         <Button variant="ghost" size="sm" asChild>
-          <Link href="/admin/proposals">← Proposals</Link>
+          <Link href={basePath === "/admin/proposals" ? basePath : "/proposals"}>
+            ← Proposals
+          </Link>
         </Button>
         <ProposalStatusBadge status={proposal.status} />
         <div className="ml-auto flex flex-wrap items-center gap-2">
@@ -59,7 +63,7 @@ export function ProposalEditor({
             <SaveButton />
           </form>
           <Button variant="outline" size="sm" asChild>
-            <Link href={`/admin/proposals/${proposal.id}/form`}>
+            <Link href={`${basePath}/${proposal.id}/form`}>
               Vote form →
             </Link>
           </Button>
@@ -68,6 +72,7 @@ export function ProposalEditor({
             status={proposal.status}
             formLocked={Boolean(proposal.formSavedAt)}
             omit={["edit", "form"]}
+            basePath={basePath}
           />
         </div>
       </div>

@@ -155,6 +155,7 @@ model Proposal {
   formSavedAt DateTime?
   publishedAt DateTime?
   closedAt    DateTime?
+  closesAt    DateTime?
   createdById String
   createdBy   User           @relation("ProposalAuthor", fields: [createdById], references: [id], onDelete: Restrict)
   fields      ProposalField[]

@@ -13,6 +13,7 @@ import {
   type ProposalActionState,
 } from "@/lib/actions/proposals";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -41,11 +42,13 @@ export function ProposalActions({
   status,
   formLocked,
   omit = [],
+  basePath = "/admin/proposals",
 }: {
   id: string;
   status: ProposalStatus;
   formLocked: boolean;
   omit?: Array<"edit" | "form">;
+  basePath?: string;
 }) {
   const [publishState, publishAction] = useActionState(publishProposal, initial);
   const [closeState, closeAction] = useActionState(closeProposal, initial);
@@ -64,20 +67,28 @@ export function ProposalActions({
     <div className="flex flex-wrap items-center gap-2">
       {omit.includes("edit") ? null : (
         <Button variant="outline" size="sm" asChild>
-          <Link href={`/admin/proposals/${id}/edit`}>Edit blog</Link>
+          <Link href={`${basePath}/${id}/edit`}>Edit blog</Link>
         </Button>
       )}
       {omit.includes("form") ? null : (
         <Button variant="outline" size="sm" asChild>
-          <Link href={`/admin/proposals/${id}/form`}>
+          <Link href={`${basePath}/${id}/form`}>
             {formLocked ? "View form" : "Vote form"}
           </Link>
         </Button>
       )}
 
       {status === ProposalStatus.DRAFT ? (
-        <form action={publishAction}>
+        <form action={publishAction} className="flex items-center gap-2">
           <input type="hidden" name="id" value={id} />
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            Closes on (IST)
+            <Input
+              type="datetime-local"
+              name="closesAt"
+              className="h-8 w-auto text-xs"
+            />
+          </label>
           <Button size="sm" type="submit" disabled={!formLocked}>
             <PendingLabel idle="Publish" pendingLabel="Publishing…" />
           </Button>

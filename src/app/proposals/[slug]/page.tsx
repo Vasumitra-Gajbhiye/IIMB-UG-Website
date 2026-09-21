@@ -9,13 +9,20 @@ import {
   ProposalPrintHeader,
   ProposalPrintSummary,
 } from "@/components/proposals/proposal-print-document";
+import { ShareProposalButton } from "@/components/proposals/share-proposal-button";
 import { ProposalStatusBadge } from "@/components/proposals/proposal-status-badge";
 import { VoteForm } from "@/components/proposals/vote-form";
 import { VoteList } from "@/components/proposals/vote-list";
 import { Separator } from "@/components/ui/separator";
 import { requireAllowlisted } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { excerptFromContent, formatDate } from "@/lib/proposals";
+import {
+  authorLabel,
+  effectiveStatus,
+  excerptFromContent,
+  formatDate,
+  formatDateTime,
+} from "@/lib/proposals";
 import { getMemberProposalBySlug } from "@/lib/queries/proposals";
 
 type Props = {
@@ -39,7 +46,8 @@ export default async function ProposalDetailPage({ params }: Props) {
   if (!proposal) notFound();
 
   const existingVote = proposal.votes.find((vote) => vote.userId === session.id);
-  const isOpen = proposal.status === ProposalStatus.PUBLISHED;
+  const status = effectiveStatus(proposal);
+  const isOpen = status === ProposalStatus.PUBLISHED;
   const allowlistedCount = session.isMod
     ? await prisma.allowedEmail.count()
     : 0;
@@ -52,17 +60,24 @@ export default async function ProposalDetailPage({ params }: Props) {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          {proposal.status === ProposalStatus.CLOSED ? (
-            <ProposalStatusBadge status={proposal.status} />
-          ) : null}
+          <ProposalStatusBadge status={status} />
           {proposal.publishedAt ? (
             <p className="text-sm text-muted-foreground">
               {formatDate(proposal.publishedAt)}
             </p>
           ) : null}
         </div>
-        {session.isMod ? <PrintProposalButton /> : null}
+        <div className="flex items-center gap-1 print:hidden">
+          {session.isMod ? <PrintProposalButton /> : null}
+          <ShareProposalButton slug={proposal.slug} />
+        </div>
       </div>
+      <p className="mt-2 text-sm text-muted-foreground">
+        Created by {authorLabel(proposal.createdBy)}
+        {isOpen && proposal.closesAt
+          ? ` · Will close on ${formatDateTime(proposal.closesAt)}`
+          : null}
+      </p>
       <h1 className="mt-3 font-serif text-4xl font-semibold tracking-tight">
         {proposal.title}
       </h1>

@@ -2,9 +2,41 @@ import type { ProposalFieldType, ProposalStatus } from "@/generated/prisma/enums
 
 export const PROPOSAL_STATUS_LABEL: Record<ProposalStatus, string> = {
   DRAFT: "Draft",
-  PUBLISHED: "Live",
+  PUBLISHED: "Active",
   CLOSED: "Closed",
 };
+
+export const PROPOSAL_TZ = "Asia/Kolkata";
+
+/** A published proposal past its close date counts as closed. */
+export function effectiveStatus(proposal: {
+  status: ProposalStatus;
+  closesAt: Date | null;
+}): ProposalStatus {
+  if (
+    proposal.status === "PUBLISHED" &&
+    proposal.closesAt &&
+    proposal.closesAt.getTime() <= Date.now()
+  ) {
+    return "CLOSED";
+  }
+  return proposal.status;
+}
+
+/** Parse a `datetime-local` value (YYYY-MM-DDTHH:mm) as IST into a Date. */
+export function parseIstDateTime(value: string): Date | null {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) return null;
+  const date = new Date(`${value}:00+05:30`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+export function authorLabel(author: {
+  email: string;
+  name: string | null;
+  student: { name: string } | null;
+}): string {
+  return author.student?.name ?? author.name ?? author.email;
+}
 
 export type ProposalFieldDTO = {
   id: string;
@@ -90,6 +122,7 @@ export function formatDateTime(iso: string | Date): string {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: PROPOSAL_TZ,
   });
 }
 

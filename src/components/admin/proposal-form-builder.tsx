@@ -51,7 +51,9 @@ const TYPE_LABEL: Record<ProposalFieldType, string> = {
 
 export function ProposalFormBuilder({
   proposal,
+  basePath = "/admin/proposals",
 }: {
+  basePath?: string;
   proposal: {
     id: string;
     title: string;
@@ -105,7 +107,7 @@ export function ProposalFormBuilder({
     <div className="space-y-6">
       <div className="sticky top-14 z-20 -mx-1 flex flex-wrap items-center gap-2 border-b border-border bg-background/95 py-3 backdrop-blur">
         <Button variant="ghost" size="sm" asChild>
-          <Link href={`/admin/proposals/${proposal.id}/edit`}>← Blog</Link>
+          <Link href={`${basePath}/${proposal.id}/edit`}>← Blog</Link>
         </Button>
         <ProposalStatusBadge status={proposal.status} />
         <div className="ml-auto flex flex-wrap items-center gap-2">
@@ -133,6 +135,7 @@ export function ProposalFormBuilder({
             status={proposal.status}
             formLocked={locked}
             omit={["edit", "form"]}
+            basePath={basePath}
           />
         </div>
       </div>
