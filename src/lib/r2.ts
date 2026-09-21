@@ -75,6 +75,34 @@ export async function presignGalleryPut(options: {
   return { key, uploadUrl, publicUrl: publicUrlForKey(key) };
 }
 
+export async function presignProfileImagePut(options: {
+  userId: string;
+  kind: "avatar" | "banner";
+  contentType: string;
+  sizeBytes: number;
+}): Promise<{ key: string; uploadUrl: string; publicUrl: string }> {
+  const { bucket } = getConfig();
+  const ext = extFromMime(options.contentType) ?? "bin";
+  const key = `profiles/${options.userId}/${options.kind}-${randomUUID()}.${ext}`;
+  const command = new PutObjectCommand({
+    Bucket: bucket,
+    Key: key,
+    ContentType: options.contentType,
+    ContentLength: options.sizeBytes,
+  });
+  const uploadUrl = await getSignedUrl(getClient(), command, {
+    expiresIn: PRESIGN_EXPIRES_SECONDS,
+  });
+  return { key, uploadUrl, publicUrl: publicUrlForKey(key) };
+}
+
+/** Object key for one of our own profile image URLs, else null. */
+export function profileKeyFromUrl(url: string, userId: string): string | null {
+  const prefix = `${getConfig().publicBaseUrl}/profiles/${userId}/`;
+  if (!url.startsWith(prefix)) return null;
+  return url.slice(getConfig().publicBaseUrl.length + 1);
+}
+
 export async function deleteGalleryObjects(keys: string[]): Promise<void> {
   if (keys.length === 0) return;
   const { bucket } = getConfig();

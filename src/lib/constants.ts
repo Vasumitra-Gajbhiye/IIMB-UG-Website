@@ -18,3 +18,5 @@ export const NAV_LINKS = [
   { href: "/faq", label: "FAQ" },
   { href: "/admin", label: "Admin" },
 ] as const;
+
+export const BATCH_YEARS = Array.from({ length: 11 }, (_, i) => 2030 + i);
