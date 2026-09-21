@@ -71,50 +71,39 @@ export async function addAllowedEmail(
   return { ok: true };
 }
 
-export async function updateAllowedEmailRole(
-  _prev: AccessActionState,
-  formData: FormData,
+export async function updateAllowedEmailRoles(
+  changes: { id: string; role: string }[],
 ): Promise<AccessActionState> {
   await requireMod();
 
   const parsed = z
-    .object({
-      id: z.string().uuid(),
-      role: roleSchema,
-    })
-    .safeParse({
-      id: formData.get("id"),
-      role: formData.get("role"),
+    .array(z.object({ id: z.string().uuid(), role: roleSchema }))
+    .safeParse(changes);
+  if (!parsed.success) return { ok: false, error: "Invalid input" };
+
+  for (const change of parsed.data) {
+    const row = await prisma.allowedEmail.findUnique({
+      where: { id: change.id },
+    });
+    if (!row) return { ok: false, error: "Row not found." };
+
+    if (isSuperAdminEmail(row.email)) {
+      return {
+        ok: false,
+        error: "Hardcoded super-admin emails cannot be demoted.",
+      };
+    }
+
+    await prisma.allowedEmail.update({
+      where: { id: row.id },
+      data: { role: change.role },
     });
 
-  if (!parsed.success) {
-    return {
-      ok: false,
-      error: parsed.error.issues[0]?.message ?? "Invalid input",
-    };
+    await prisma.user.updateMany({
+      where: { email: row.email },
+      data: { role: change.role },
+    });
   }
-
-  const row = await prisma.allowedEmail.findUnique({
-    where: { id: parsed.data.id },
-  });
-  if (!row) return { ok: false, error: "Row not found." };
-
-  if (isSuperAdminEmail(row.email)) {
-    return {
-      ok: false,
-      error: "Hardcoded super-admin emails cannot be demoted.",
-    };
-  }
-
-  await prisma.allowedEmail.update({
-    where: { id: row.id },
-    data: { role: parsed.data.role },
-  });
-
-  await prisma.user.updateMany({
-    where: { email: row.email },
-    data: { role: parsed.data.role },
-  });
 
   revalidatePath("/admin/access");
   revalidatePath("/admin");

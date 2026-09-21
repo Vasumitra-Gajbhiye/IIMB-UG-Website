@@ -1,12 +1,12 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
 
 import {
   addAllowedEmail,
   removeAllowedEmail,
-  updateAllowedEmailRole,
+  updateAllowedEmailRoles,
   type AccessActionState,
 } from "@/lib/actions/access";
 import { Badge } from "@/components/ui/badge";
@@ -50,8 +50,29 @@ type Row = {
   locked: boolean;
 };
 
+type RoleValue = Row["role"];
+
 export function AccessManager({ rows }: { rows: Row[] }) {
   const [addState, addAction] = useActionState(addAllowedEmail, initial);
+  const [edits, setEdits] = useState<Record<string, RoleValue>>({});
+  const [saveError, setSaveError] = useState<string>();
+  const [saving, startSaving] = useTransition();
+
+  const changes = rows
+    .filter((r) => !r.locked && edits[r.id] && edits[r.id] !== r.role)
+    .map((r) => ({ id: r.id, role: edits[r.id] }));
+
+  function save() {
+    startSaving(async () => {
+      const res = await updateAllowedEmailRoles(changes);
+      if (res.ok) {
+        setEdits({});
+        setSaveError(undefined);
+      } else {
+        setSaveError(res.error);
+      }
+    });
+  }
 
   return (
     <div className="space-y-8">
@@ -112,20 +133,58 @@ export function AccessManager({ rows }: { rows: Row[] }) {
                 </TableCell>
               </TableRow>
             ) : (
-              rows.map((row) => <AccessRow key={row.id} row={row} />)
+              rows.map((row) => (
+                <AccessRow
+                  key={row.id}
+                  row={row}
+                  role={edits[row.id] ?? row.role}
+                  onRoleChange={(role) =>
+                    setEdits((prev) => ({ ...prev, [row.id]: role }))
+                  }
+                />
+              ))
             )}
           </TableBody>
         </Table>
       </div>
+
+      {changes.length > 0 ? (
+        <div className="fixed inset-x-0 bottom-0 z-50 flex items-center justify-center gap-3 border-t border-border bg-background/95 p-3 backdrop-blur">
+          <span className="text-sm text-muted-foreground">
+            {changes.length} unsaved {changes.length === 1 ? "change" : "changes"}
+          </span>
+          {saveError ? (
+            <span className="text-sm text-destructive">{saveError}</span>
+          ) : null}
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={saving}
+            onClick={() => {
+              setEdits({});
+              setSaveError(undefined);
+            }}
+          >
+            Discard
+          </Button>
+          <Button size="sm" disabled={saving} onClick={save}>
+            {saving ? "Saving…" : "Save changes"}
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }
 
-function AccessRow({ row }: { row: Row }) {
-  const [roleState, roleAction] = useActionState(
-    updateAllowedEmailRole,
-    initial,
-  );
+function AccessRow({
+  row,
+  role,
+  onRoleChange,
+}: {
+  row: Row;
+  role: RoleValue;
+  onRoleChange: (role: RoleValue) => void;
+}) {
   const [removeState, removeAction] = useActionState(
     removeAllowedEmail,
     initial,
@@ -145,22 +204,15 @@ function AccessRow({ row }: { row: Row }) {
         {row.locked ? (
           <span className="text-sm">Mod</span>
         ) : (
-          <form action={roleAction} className="flex flex-wrap items-center gap-2">
-            <input type="hidden" name="id" value={row.id} />
-            <select
-              name="role"
-              defaultValue={row.role}
-              className={`${selectClassName} w-28`}
-              aria-label={`Role for ${row.email}`}
-            >
-              <option value="STUDENT">Student</option>
-              <option value="SUPER_ADMIN">Mod</option>
-            </select>
-            <SubmitButton variant="outline">Save</SubmitButton>
-            {roleState.error ? (
-              <span className="text-xs text-destructive">{roleState.error}</span>
-            ) : null}
-          </form>
+          <select
+            value={role}
+            onChange={(e) => onRoleChange(e.target.value as RoleValue)}
+            className={`${selectClassName} w-28`}
+            aria-label={`Role for ${row.email}`}
+          >
+            <option value="STUDENT">Student</option>
+            <option value="SUPER_ADMIN">Mod</option>
+          </select>
         )}
       </TableCell>
       <TableCell className="text-muted-foreground">
