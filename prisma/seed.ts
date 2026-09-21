@@ -1,7 +1,6 @@
 import { config } from "dotenv";
 import { PrismaNeon } from "@prisma/adapter-neon";
 import {
-  FaqCategory,
   PostStatus,
   PrismaClient,
   Role,
@@ -299,57 +298,71 @@ async function main() {
     });
   }
 
+  const faqCategoryRows = [
+    { name: "General", slug: "general", isDefault: true },
+    { name: "Admissions", slug: "admissions", isDefault: false },
+    { name: "Academics", slug: "academics", isDefault: false },
+    { name: "Campus Life", slug: "campus-life", isDefault: false },
+  ];
+  const faqCategoryIds = new Map<string, string>();
+  for (const row of faqCategoryRows) {
+    const category = await prisma.faqCategory.upsert({
+      where: { slug: row.slug },
+      create: row,
+      update: {},
+    });
+    faqCategoryIds.set(row.slug, category.id);
+  }
+
   const faqs = [
     {
       question: "Is this the official IIM Bangalore UG admissions site?",
       answer:
         "No. This is a student-run batch project. For official programme and admissions information, visit ug.iimb.ac.in.",
-      category: FaqCategory.ADMISSIONS,
+      categorySlug: "admissions",
       sortOrder: 0,
     },
     {
       question: "Where can I find official eligibility and deadlines?",
       answer:
         "Placeholder answer: check the official IIMB UG pages for the latest eligibility criteria, timelines, and application links. We do not invent admissions policy here.",
-      category: FaqCategory.ADMISSIONS,
+      categorySlug: "admissions",
       sortOrder: 1,
     },
     {
       question: "What are the two undergraduate majors?",
       answer:
         "B.Sc. (Hons) in Data Science (minor in Economics and Business) and B.Sc. (Hons) in Economics (minor in Data Science and Business).",
-      category: FaqCategory.ACADEMICS,
+      categorySlug: "academics",
       sortOrder: 0,
     },
     {
       question: "How large is the inaugural cohort?",
       answer:
         "About 80 students in AY 2026–27, with roughly 40 per major at the School of Multidisciplinary Studies.",
-      category: FaqCategory.ACADEMICS,
+      categorySlug: "academics",
       sortOrder: 1,
     },
     {
       question: "Where is the undergraduate campus?",
       answer:
         "The inaugural UG cohort is associated with the Jigani campus. Details on facilities may change — treat this as informal batch context, not official housing policy.",
-      category: FaqCategory.CAMPUS_LIFE,
+      categorySlug: "campus-life",
       sortOrder: 0,
     },
     {
       question: "Can families visit or contact students through this site?",
       answer:
         "This site shows public student cards and writing when listed. It is not a messaging platform; reach people through the links they choose to share.",
-      category: FaqCategory.CAMPUS_LIFE,
+      categorySlug: "campus-life",
       sortOrder: 1,
     },
   ];
 
-  for (const faq of faqs) {
+  for (const { categorySlug, ...faq } of faqs) {
+    const categoryId = faqCategoryIds.get(categorySlug)!;
     const existing = await prisma.faq.findFirst({
-      where: {
-        question: faq.question,
-        category: faq.category,
-      },
+      where: { question: faq.question, categoryId },
     });
 
     if (existing) {
@@ -362,7 +375,7 @@ async function main() {
       });
     } else {
       await prisma.faq.create({
-        data: faq,
+        data: { ...faq, categoryId },
       });
     }
   }

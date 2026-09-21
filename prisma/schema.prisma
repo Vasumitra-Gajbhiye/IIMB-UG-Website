@@ -24,12 +24,6 @@ enum PostStatus {
   PUBLISHED
 }
 
-enum FaqCategory {
-  ADMISSIONS
-  ACADEMICS
-  CAMPUS_LIFE
-}
-
 enum ProposalStatus {
   DRAFT
   PUBLISHED
@@ -58,6 +52,8 @@ model User {
   votes             ProposalVote[]
   galleryPosts      GalleryPost[]
   galleryAlbums     GalleryAlbum[]
+  faqs              Faq[]          @relation("FaqAuthor")
+  faqCategories     FaqCategory[]  @relation("FaqCategoryCreator")
 }
 
 model AllowedEmail {
@@ -134,16 +130,30 @@ model Blog {
   @@index([authorId])
 }
 
-model Faq {
-  id        String      @id @default(uuid())
-  question  String
-  answer    String      @db.Text
-  category  FaqCategory
-  sortOrder Int         @default(0)
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
+model FaqCategory {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  slug        String   @unique
+  isDefault   Boolean  @default(false)
+  createdById String?
+  createdBy   User?    @relation("FaqCategoryCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  faqs        Faq[]
+}
 
-  @@index([category, sortOrder])
+model Faq {
+  id         String      @id @default(uuid())
+  question   String
+  answer     String      @db.Text
+  categoryId String
+  category   FaqCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  authorId   String?
+  author     User?       @relation("FaqAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  sortOrder  Int         @default(0)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@index([categoryId, sortOrder])
 }
 
 model Proposal {
