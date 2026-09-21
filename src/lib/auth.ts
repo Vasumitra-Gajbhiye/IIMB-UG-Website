@@ -52,6 +52,44 @@ export async function isEmailAllowlisted(email: string): Promise<boolean> {
   return Boolean(row);
 }
 
+type UpsertInput = {
+  clerkId: string;
+  email: string;
+  role: Role;
+  studentId: string | null;
+};
+
+/**
+ * Upsert a User keyed by clerkId, tolerating an existing row with the same
+ * email but a different clerkId (e.g. dev -> prod Clerk instance) and
+ * concurrent-request races (P2002).
+ */
+async function upsertUserByClerk(input: UpsertInput) {
+  const { clerkId, email, role, studentId } = input;
+  const attempt = async () => {
+    const byClerk = await prisma.user.findUnique({ where: { clerkId } });
+    const existing = byClerk ?? (await prisma.user.findUnique({ where: { email } }));
+    if (existing) {
+      return prisma.user.update({
+        where: { id: existing.id },
+        data: {
+          clerkId,
+          email,
+          role,
+          ...(studentId && studentId !== existing.studentId ? { studentId } : {}),
+        },
+      });
+    }
+    return prisma.user.create({ data: { clerkId, email, role, studentId } });
+  };
+  try {
+    return await attempt();
+  } catch (err) {
+    if ((err as { code?: string })?.code === "P2002") return attempt();
+    throw err;
+  }
+}
+
 /**
  * Upsert Prisma User from the current Clerk session.
  * Call from /me and gated admin layouts so Directory sees sign-ups without a webhook.
@@ -69,20 +107,7 @@ export async function ensureUser(): Promise<SessionUser | null> {
   const role = await resolveRole(email);
   const studentId = await resolveStudentId(email);
 
-  const user = await prisma.user.upsert({
-    where: { clerkId: userId },
-    create: {
-      clerkId: userId,
-      email,
-      role,
-      studentId,
-    },
-    update: {
-      email,
-      role,
-      ...(studentId ? { studentId } : {}),
-    },
-  });
+  const user = await upsertUserByClerk({ clerkId: userId, email, role, studentId });
 
   const allowlisted = await isEmailAllowlisted(email);
 
@@ -114,20 +139,7 @@ export async function syncUserFromClerk(data: {
   const role = await resolveRole(email);
   const studentId = await resolveStudentId(email);
 
-  await prisma.user.upsert({
-    where: { clerkId: data.id },
-    create: {
-      clerkId: data.id,
-      email,
-      role,
-      studentId,
-    },
-    update: {
-      email,
-      role,
-      ...(studentId ? { studentId } : {}),
-    },
-  });
+  await upsertUserByClerk({ clerkId: data.id, email, role, studentId });
 }
 
 export async function deleteUserByClerkId(clerkId: string): Promise<void> {
