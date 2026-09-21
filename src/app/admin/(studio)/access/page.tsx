@@ -35,7 +35,6 @@ export default async function AdminAccessPage() {
       </h1>
       <p className="mt-2 text-muted-foreground">
         Grant Studio entry (Student) or mod powers (Access + Directory).
-        Hardcoded super-admin emails cannot be removed or demoted.
       </p>
       <div className="mt-8">
         <AccessManager
@@ -43,7 +42,6 @@ export default async function AdminAccessPage() {
             id: row.id,
             email: row.email,
             role: row.role,
-            createdAt: row.createdAt.toISOString(),
             locked: isSuperAdminEmail(row.email),
           }))}
         />

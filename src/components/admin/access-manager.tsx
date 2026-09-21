@@ -11,6 +11,16 @@ import {
 } from "@/lib/actions/access";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -46,7 +56,6 @@ type Row = {
   id: string;
   email: string;
   role: "SUPER_ADMIN" | "STUDENT";
-  createdAt: string;
   locked: boolean;
 };
 
@@ -121,14 +130,13 @@ export function AccessManager({ rows }: { rows: Row[] }) {
             <TableRow>
               <TableHead>Email</TableHead>
               <TableHead>Role</TableHead>
-              <TableHead>Added</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-muted-foreground">
+                <TableCell colSpan={3} className="text-muted-foreground">
                   No allowlisted emails yet.
                 </TableCell>
               </TableRow>
@@ -185,10 +193,22 @@ function AccessRow({
   role: RoleValue;
   onRoleChange: (role: RoleValue) => void;
 }) {
-  const [removeState, removeAction] = useActionState(
-    removeAllowedEmail,
-    initial,
-  );
+  const [open, setOpen] = useState(false);
+  const [removeError, setRemoveError] = useState<string>();
+  const [removing, startRemoving] = useTransition();
+
+  function remove() {
+    startRemoving(async () => {
+      const formData = new FormData();
+      formData.set("id", row.id);
+      const res = await removeAllowedEmail(initial, formData);
+      if (res.ok) {
+        setOpen(false);
+      } else {
+        setRemoveError(res.error);
+      }
+    });
+  }
 
   return (
     <TableRow>
@@ -215,24 +235,49 @@ function AccessRow({
           </select>
         )}
       </TableCell>
-      <TableCell className="text-muted-foreground">
-        {new Date(row.createdAt).toLocaleDateString("en-IN", {
-          day: "numeric",
-          month: "short",
-          year: "numeric",
-        })}
-      </TableCell>
       <TableCell className="text-right">
         {row.locked ? (
           <span className="text-xs text-muted-foreground">—</span>
         ) : (
-          <form action={removeAction}>
-            <input type="hidden" name="id" value={row.id} />
-            <SubmitButton variant="destructive">Remove</SubmitButton>
-            {removeState.error ? (
-              <p className="mt-1 text-xs text-destructive">{removeState.error}</p>
-            ) : null}
-          </form>
+          <Dialog
+            open={open}
+            onOpenChange={(next) => {
+              setOpen(next);
+              if (!next) setRemoveError(undefined);
+            }}
+          >
+            <DialogTrigger asChild>
+              <Button variant="destructive" size="sm">
+                Remove
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Remove access?</DialogTitle>
+                <DialogDescription>
+                  {row.email} will lose access to the Studio. This can&apos;t
+                  be undone, but you can add them again later.
+                </DialogDescription>
+              </DialogHeader>
+              {removeError ? (
+                <p className="text-sm text-destructive">{removeError}</p>
+              ) : null}
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button variant="outline" disabled={removing}>
+                    Cancel
+                  </Button>
+                </DialogClose>
+                <Button
+                  variant="destructive"
+                  disabled={removing}
+                  onClick={remove}
+                >
+                  {removing ? "Removing…" : "Remove"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         )}
       </TableCell>
     </TableRow>
