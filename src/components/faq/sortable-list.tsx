@@ -21,14 +21,13 @@ import { GripVertical } from "lucide-react";
 import { useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 
-import { reorderFaqs } from "@/lib/actions/faq";
-import type { FaqItem } from "@/lib/queries/faqs";
-
 function SortableRow({
   id,
+  itemClassName,
   children,
 }: {
   id: string;
+  itemClassName: string;
   children: ReactNode;
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
@@ -38,7 +37,7 @@ function SortableRow({
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={`flex items-start gap-1 border-b bg-background last:border-b-0 ${isDragging ? "relative z-10 shadow-md" : ""}`}
+      className={`flex items-start gap-1 bg-background ${itemClassName} ${isDragging ? "relative z-10 shadow-md" : ""}`}
     >
       <button
         type="button"
@@ -55,17 +54,27 @@ function SortableRow({
   );
 }
 
-/** Mods get drag-to-reorder; everyone else gets a plain list. */
-export function SortableFaqs({
-  categoryId,
+/**
+ * Drag-to-reorder list for anyone who can reorder; a plain list otherwise.
+ * `onReorder` persists the new order and should return `{ok:false}` on failure,
+ * at which point the list reverts and a toast explains why.
+ */
+export function SortableList<T extends { id: string }>({
   items,
   canReorder,
+  onReorder,
   renderItem,
+  className = "",
+  itemClassName = "border-b last:border-b-0",
 }: {
-  categoryId: string;
-  items: FaqItem[];
+  items: T[];
   canReorder: boolean;
-  renderItem: (item: FaqItem) => ReactNode;
+  onReorder: (orderedIds: string[]) => Promise<{ ok: boolean; error?: string }>;
+  renderItem: (item: T) => ReactNode;
+  /** Classes for the list's own wrapping element (e.g. vertical spacing). */
+  className?: string;
+  /** Classes for each item's wrapping element (e.g. dividers). */
+  itemClassName?: string;
 }) {
   const [local, setLocal] = useState(items);
   const [prevItems, setPrevItems] = useState(items);
@@ -83,24 +92,29 @@ export function SortableFaqs({
   );
 
   if (!canReorder) {
-    return <div>{local.map((item) => <div key={item.id} className="border-b last:border-b-0">{renderItem(item)}</div>)}</div>;
+    return (
+      <div className={className}>
+        {local.map((item) => (
+          <div key={item.id} className={itemClassName}>
+            {renderItem(item)}
+          </div>
+        ))}
+      </div>
+    );
   }
 
   function onDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    const from = local.findIndex((f) => f.id === active.id);
-    const to = local.findIndex((f) => f.id === over.id);
+    const from = local.findIndex((item) => item.id === active.id);
+    const to = local.findIndex((item) => item.id === over.id);
     if (from < 0 || to < 0) return;
 
     const previous = local;
     const next = arrayMove(local, from, to);
     setLocal(next);
     startTransition(async () => {
-      const res = await reorderFaqs({
-        categoryId,
-        orderedIds: next.map((f) => f.id),
-      });
+      const res = await onReorder(next.map((item) => item.id));
       if (!res.ok) {
         setLocal(previous);
         toast.error(res.error ?? "Could not save the new order.");
@@ -110,12 +124,14 @@ export function SortableFaqs({
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-      <SortableContext items={local.map((f) => f.id)} strategy={verticalListSortingStrategy}>
-        {local.map((item) => (
-          <SortableRow key={item.id} id={item.id}>
-            {renderItem(item)}
-          </SortableRow>
-        ))}
+      <SortableContext items={local.map((item) => item.id)} strategy={verticalListSortingStrategy}>
+        <div className={className}>
+          {local.map((item) => (
+            <SortableRow key={item.id} id={item.id} itemClassName={itemClassName}>
+              {renderItem(item)}
+            </SortableRow>
+          ))}
+        </div>
       </SortableContext>
     </DndContext>
   );

@@ -135,10 +135,13 @@ model FaqCategory {
   name        String   @unique
   slug        String   @unique
   isDefault   Boolean  @default(false)
+  sortOrder   Int      @default(0)
   createdById String?
   createdBy   User?    @relation("FaqCategoryCreator", fields: [createdById], references: [id], onDelete: SetNull)
   createdAt   DateTime @default(now())
   faqs        Faq[]
+
+  @@index([sortOrder])
 }
 
 model Faq {

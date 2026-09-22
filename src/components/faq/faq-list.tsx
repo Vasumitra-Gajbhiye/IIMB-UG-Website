@@ -25,8 +25,14 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { AddCategoryDialog } from "@/components/faq/add-category-dialog";
 import { AddFaqDialog } from "@/components/faq/add-faq-dialog";
-import { SortableFaqs } from "@/components/faq/sortable-faq-list";
-import { deleteFaq, deleteFaqCategory, updateFaq } from "@/lib/actions/faq";
+import { SortableList } from "@/components/faq/sortable-list";
+import {
+  deleteFaq,
+  deleteFaqCategory,
+  reorderFaqCategories,
+  reorderFaqs,
+  updateFaq,
+} from "@/lib/actions/faq";
 import type { FaqCategoryGroup, FaqItem } from "@/lib/queries/faqs";
 
 type Props = {
@@ -174,7 +180,9 @@ export function FaqList({ categories, canPost, isMod, signedIn, currentUserId }:
       <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
         <p className="text-muted-foreground">
           Questions from the batch, answered by the batch.
-          {canEdit && isMod && " Drag the handles to reorder FAQs within a category."}
+          {canEdit &&
+            isMod &&
+            " Drag the handles to reorder categories, or FAQs within a category."}
         </p>
         <div className="flex flex-wrap items-center gap-2">
           {canPost && canEdit && (
@@ -205,9 +213,14 @@ export function FaqList({ categories, canPost, isMod, signedIn, currentUserId }:
         </div>
       </div>
 
-      <div className="mt-8 space-y-10">
-        {categories.map((category) => (
-          <section key={category.id} aria-labelledby={`faq-cat-${category.id}`}>
+      <SortableList
+        items={categories}
+        canReorder={canEdit && isMod && categories.length > 1}
+        onReorder={reorderFaqCategories}
+        className="mt-8 space-y-10"
+        itemClassName=""
+        renderItem={(category) => (
+          <section aria-labelledby={`faq-cat-${category.id}`}>
             <div className="flex items-center justify-between gap-2 border-b pb-2">
               <h2
                 id={`faq-cat-${category.id}`}
@@ -231,10 +244,12 @@ export function FaqList({ categories, canPost, isMod, signedIn, currentUserId }:
               <p className="py-4 text-sm text-muted-foreground">No FAQs here yet.</p>
             ) : (
               <Accordion type="multiple">
-                <SortableFaqs
-                  categoryId={category.id}
+                <SortableList
                   items={category.faqs}
                   canReorder={canEdit && isMod && category.faqs.length > 1}
+                  onReorder={(orderedIds) =>
+                    reorderFaqs({ categoryId: category.id, orderedIds })
+                  }
                   renderItem={(faq) => (
                     <AccordionItem value={faq.id} className="border-b-0">
                       <AccordionTrigger className="text-base">
@@ -276,8 +291,8 @@ export function FaqList({ categories, canPost, isMod, signedIn, currentUserId }:
               </Accordion>
             )}
           </section>
-        ))}
-      </div>
+        )}
+      />
 
       {editing && <EditFaqDialog key={editing.id} faq={editing} onClose={() => setEditing(null)} />}
       {deletingFaq && (

@@ -44,6 +44,11 @@ async function nextSortOrder(categoryId: string): Promise<number> {
   return (top._max.sortOrder ?? -1) + 1;
 }
 
+async function nextCategorySortOrder(): Promise<number> {
+  const top = await prisma.faqCategory.aggregate({ _max: { sortOrder: true } });
+  return (top._max.sortOrder ?? -1) + 1;
+}
+
 export async function createFaqCategory(name: string): Promise<FaqActionState> {
   const session = await requirePoster();
   if (!session) return { ok: false, error: NOT_ALLOWED };
@@ -66,7 +71,12 @@ export async function createFaqCategory(name: string): Promise<FaqActionState> {
 
   try {
     const created = await prisma.faqCategory.create({
-      data: { name: clean, slug, createdById: session.id },
+      data: {
+        name: clean,
+        slug,
+        createdById: session.id,
+        sortOrder: await nextCategorySortOrder(),
+      },
     });
     refresh();
     return { ok: true, categoryId: created.id };
@@ -253,6 +263,33 @@ export async function reorderFaqs(input: {
   await prisma.$transaction(
     orderedIds.map((id, index) =>
       prisma.faq.update({ where: { id }, data: { sortOrder: index } }),
+    ),
+  );
+  refresh();
+  return { ok: true };
+}
+
+export async function reorderFaqCategories(orderedIds: string[]): Promise<FaqActionState> {
+  const session = await ensureUser();
+  if (!session?.isMod) return { ok: false, error: "Only mods can reorder categories." };
+
+  const parsed = z.array(z.string().uuid()).max(500).safeParse(orderedIds);
+  if (!parsed.success) return { ok: false, error: firstError(parsed.error) };
+  const ids = parsed.data;
+
+  const existing = await prisma.faqCategory.findMany({ select: { id: true } });
+  const existingIds = new Set(existing.map((c) => c.id));
+  if (
+    ids.length !== existingIds.size ||
+    new Set(ids).size !== ids.length ||
+    !ids.every((id) => existingIds.has(id))
+  ) {
+    return { ok: false, error: "The list changed. Refresh and try again." };
+  }
+
+  await prisma.$transaction(
+    ids.map((id, index) =>
+      prisma.faqCategory.update({ where: { id }, data: { sortOrder: index } }),
     ),
   );
   refresh();

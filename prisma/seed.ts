@@ -299,10 +299,10 @@ async function main() {
   }
 
   const faqCategoryRows = [
-    { name: "General", slug: "general", isDefault: true },
-    { name: "Admissions", slug: "admissions", isDefault: false },
-    { name: "Academics", slug: "academics", isDefault: false },
-    { name: "Campus Life", slug: "campus-life", isDefault: false },
+    { name: "General", slug: "general", isDefault: true, sortOrder: 0 },
+    { name: "Admissions", slug: "admissions", isDefault: false, sortOrder: 1 },
+    { name: "Academics", slug: "academics", isDefault: false, sortOrder: 2 },
+    { name: "Campus Life", slug: "campus-life", isDefault: false, sortOrder: 3 },
   ];
   const faqCategoryIds = new Map<string, string>();
   for (const row of faqCategoryRows) {

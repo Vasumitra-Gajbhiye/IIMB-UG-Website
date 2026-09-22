@@ -16,9 +16,10 @@ export type FaqCategoryGroup = {
   faqs: FaqItem[];
 };
 
-/** All categories (General first, then A-Z) with their FAQs in display order. */
+/** Categories in mod-defined display order, each with its FAQs in display order. */
 export async function getFaqsGrouped(): Promise<FaqCategoryGroup[]> {
   const categories = await prisma.faqCategory.findMany({
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     include: {
       faqs: {
         orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
@@ -31,25 +32,17 @@ export async function getFaqsGrouped(): Promise<FaqCategoryGroup[]> {
     },
   });
 
-  return categories
-    .sort((a, b) =>
-      a.isDefault === b.isDefault
-        ? a.name.localeCompare(b.name)
-        : a.isDefault
-          ? -1
-          : 1,
-    )
-    .map((c) => ({
-      id: c.id,
-      name: c.name,
-      isDefault: c.isDefault,
-      createdById: c.createdById,
-      faqs: c.faqs.map((f) => ({
-        id: f.id,
-        question: f.question,
-        answer: f.answer,
-        authorId: f.authorId,
-        authorName: f.author?.student?.name ?? f.author?.name ?? null,
-      })),
-    }));
+  return categories.map((c) => ({
+    id: c.id,
+    name: c.name,
+    isDefault: c.isDefault,
+    createdById: c.createdById,
+    faqs: c.faqs.map((f) => ({
+      id: f.id,
+      question: f.question,
+      answer: f.answer,
+      authorId: f.authorId,
+      authorName: f.author?.student?.name ?? f.author?.name ?? null,
+    })),
+  }));
 }
