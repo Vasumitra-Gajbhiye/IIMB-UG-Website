@@ -3,12 +3,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Pencil } from "lucide-react";
 
+import { BlogCard } from "@/components/blogs/blog-card";
 import { SOCIAL_ICONS } from "@/components/profile/brand-icons";
 import { ProfileHero } from "@/components/profile/profile-hero";
 import { Button } from "@/components/ui/button";
 import { ensureUser, isEmailAllowlisted } from "@/lib/auth";
 import { TRACK_LABEL } from "@/lib/constants";
 import { prisma } from "@/lib/prisma";
+import { listStudentBlogs } from "@/lib/queries/blogs";
 import { SOCIAL_META, socialDisplay, validateSlug } from "@/lib/profile";
 
 type Props = {
@@ -48,7 +50,10 @@ export default async function StudentProfilePage({ params }: Props) {
   const student = await loadPublicStudent(slug);
   if (!student) notFound();
 
-  const session = await ensureUser();
+  const [session, blogs] = await Promise.all([
+    ensureUser(),
+    listStudentBlogs(student.id),
+  ]);
   const isOwner = session?.email === student.email;
 
   const links = (
@@ -129,6 +134,30 @@ export default async function StudentProfilePage({ params }: Props) {
           </aside>
         ) : null}
       </div>
+
+      {blogs.length > 0 || isOwner ? (
+        <section className="mt-10">
+          <div className="flex items-center justify-between gap-4">
+            <h2 className="font-serif text-2xl font-semibold tracking-tight">Writing</h2>
+            {isOwner ? (
+              <Button asChild variant="ghost" size="sm">
+                <Link href="/blogs/mine">My Blogs</Link>
+              </Button>
+            ) : null}
+          </div>
+          {blogs.length === 0 ? (
+            <p className="mt-3 text-sm text-muted-foreground">
+              You haven&apos;t published any blogs yet.
+            </p>
+          ) : (
+            <div className="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-2">
+              {blogs.map((blog) => (
+                <BlogCard key={blog.id} blog={blog} />
+              ))}
+            </div>
+          )}
+        </section>
+      ) : null}
     </div>
   );
 }

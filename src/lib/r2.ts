@@ -96,6 +96,33 @@ export async function presignProfileImagePut(options: {
   return { key, uploadUrl, publicUrl: publicUrlForKey(key) };
 }
 
+export async function presignBlogImagePut(options: {
+  userId: string;
+  contentType: string;
+  sizeBytes: number;
+}): Promise<{ key: string; uploadUrl: string; publicUrl: string }> {
+  const { bucket } = getConfig();
+  const ext = extFromMime(options.contentType) ?? "bin";
+  const key = `blogs/${options.userId}/${randomUUID()}.${ext}`;
+  const command = new PutObjectCommand({
+    Bucket: bucket,
+    Key: key,
+    ContentType: options.contentType,
+    ContentLength: options.sizeBytes,
+  });
+  const uploadUrl = await getSignedUrl(getClient(), command, {
+    expiresIn: PRESIGN_EXPIRES_SECONDS,
+  });
+  return { key, uploadUrl, publicUrl: publicUrlForKey(key) };
+}
+
+/** Object key for one of our own blog image URLs, else null. */
+export function blogKeyFromUrl(url: string): string | null {
+  const base = getConfig().publicBaseUrl;
+  if (!url.startsWith(`${base}/blogs/`)) return null;
+  return url.slice(base.length + 1);
+}
+
 /** Object key for one of our own profile image URLs, else null. */
 export function profileKeyFromUrl(url: string, userId: string): string | null {
   const prefix = `${getConfig().publicBaseUrl}/profiles/${userId}/`;

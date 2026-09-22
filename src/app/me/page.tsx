@@ -26,7 +26,19 @@ function siteHost() {
   }
 }
 
-export default async function MePage() {
+/** Only same-site paths, never `//host` or absolute URLs. */
+function safeNext(value: string | string[] | undefined): string | null {
+  const next = Array.isArray(value) ? value[0] : value;
+  if (!next || !next.startsWith("/") || next.startsWith("//")) return null;
+  return next;
+}
+
+export default async function MePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string | string[] }>;
+}) {
+  const next = safeNext((await searchParams).next);
   const session = await ensureUser();
   if (!session) redirect("/sign-in");
 
@@ -55,6 +67,7 @@ export default async function MePage() {
         email={session.email}
         isMod={session.isMod}
         siteHost={siteHost()}
+        returnTo={next}
       />
     );
   } else {

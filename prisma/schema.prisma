@@ -19,9 +19,12 @@ enum Role {
 
 enum PostStatus {
   DRAFT
-  IN_REVIEW
-  CHANGES_REQUESTED
   PUBLISHED
+}
+
+enum ReactionType {
+  LIKE
+  DISLIKE
 }
 
 enum ProposalStatus {
@@ -47,13 +50,14 @@ model User {
   student   Student? @relation(fields: [studentId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  reviewedBlogs Blog[] @relation("BlogReviewer")
   authoredProposals Proposal[] @relation("ProposalAuthor")
   votes             ProposalVote[]
   galleryPosts      GalleryPost[]
   galleryAlbums     GalleryAlbum[]
   faqs              Faq[]          @relation("FaqAuthor")
   faqCategories     FaqCategory[]  @relation("FaqCategoryCreator")
+  blogReactions     BlogReaction[]
+  blogComments      BlogComment[]
 }
 
 model AllowedEmail {
@@ -107,27 +111,52 @@ model Resource {
 }
 
 model Blog {
-  id            String     @id @default(uuid())
-  slug          String     @unique
-  title         String
+  id            String         @id @default(uuid())
+  slug          String         @unique
+  title         String         @default("Untitled")
   excerpt       String?
-  content       Json       @default("[]")
+  content       Json           @default("[]")
   coverImageUrl String?
   tags          String[]
-  status        PostStatus @default(DRAFT)
-  reviewNote    String?    @db.Text
-  submittedAt   DateTime?
+  status        PostStatus     @default(DRAFT)
   publishedAt   DateTime?
-  reviewedAt    DateTime?
+  starredAt     DateTime?
   authorId      String
-  author        Student    @relation(fields: [authorId], references: [id], onDelete: Restrict)
-  reviewedById  String?
-  reviewedBy    User?      @relation("BlogReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  author        Student        @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  reactions     BlogReaction[]
+  comments      BlogComment[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
-  @@index([status, publishedAt])
+  @@index([status, publishedAt, id])
+  @@index([starredAt])
   @@index([authorId])
+}
+
+model BlogReaction {
+  id        String       @id @default(uuid())
+  blogId    String
+  blog      Blog         @relation(fields: [blogId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      ReactionType
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@unique([blogId, userId])
+  @@index([blogId, type])
+}
+
+model BlogComment {
+  id        String   @id @default(uuid())
+  blogId    String
+  blog      Blog     @relation(fields: [blogId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([blogId, createdAt])
 }
 
 model FaqCategory {

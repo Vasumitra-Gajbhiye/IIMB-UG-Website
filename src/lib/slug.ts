@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { RESERVED_BLOG_SLUGS } from "@/lib/blogs";
 import { RESERVED_SLUGS, SLUG_MAX_LENGTH } from "@/lib/profile";
 
 export function slugify(input: string): string {
@@ -49,6 +50,28 @@ export async function uniqueStudentSlug(
     if ((!existing || existing.id === excludeId) && !RESERVED_SLUGS.has(slug)) {
       return slug;
     }
+    slug = `${base}-${n}`;
+    n += 1;
+  }
+}
+
+/** Blog slug from a title; avoids static /blogs routes and collisions. */
+export async function uniqueBlogSlug(
+  title: string,
+  excludeId?: string,
+): Promise<string> {
+  const ascii = title.normalize("NFKD").replace(/[^a-zA-Z0-9]/g, "");
+  let base = ascii ? slugify(title) : "untitled";
+  if (RESERVED_BLOG_SLUGS.has(base)) base = `${base}-post`;
+  let slug = base;
+  let n = 2;
+
+  while (true) {
+    const existing = await prisma.blog.findUnique({
+      where: { slug },
+      select: { id: true },
+    });
+    if (!existing || existing.id === excludeId) return slug;
     slug = `${base}-${n}`;
     n += 1;
   }

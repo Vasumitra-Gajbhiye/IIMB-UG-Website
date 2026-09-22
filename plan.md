@@ -80,10 +80,9 @@ Primary audience: the 80 batchmates, families, and curious outsiders. Secondary:
 | Listing | `isListed`. Unlisted students are omitted from directory, home teaser, and public profile (`notFound`) |
 | Who edits cards now | Only **super-admin** (you). The product still has “edit my profile” so adding emails later is data, not a rewrite |
 | Who edits cards later | Super-admin adds official emails to the allowlist and links them to `Student.email` |
-| Blogs | Public index `/blogs` + `/blogs/[slug]`. Author is a `Student` |
+| Blogs | Public index `/blogs` (featured carousel of admin-starred posts + infinite feed, 10 per page) + `/blogs/[slug]`. Author is a `Student`. Writers manage drafts at `/blogs/mine` and edit at `/blogs/mine/[id]`. Thumbnail + short description required to publish. Any signed-in user can like/dislike and comment |
 | Blog editor | **BlockNote** (same stack as Ralevel blogs-v2). Notion-like, not a Markdown textarea |
-| Blog review | Nobody self-publishes. Flow: `DRAFT` → `IN_REVIEW` → `PUBLISHED` or `CHANGES_REQUESTED` |
-| Super-admin publish | Super-admin may approve (and can write posts). Even super-admin posts should go through Save draft → Submit → Approve so the queue stays honest. Shortcut: super-admin **Approve** on their own submission is enough |
+| Blog publishing | **Self-publish** (review queue dropped). `DRAFT` ⇄ `PUBLISHED`; authors can edit live, unpublish, delete. Mods can also unpublish/delete any blog and **star** blogs (internal; starred = featured carousel) |
 | FAQ | Pretty **dummy** accordion. Placeholder copy. Real answers later |
 | Proposals | **Members only** (`/proposals` + `/proposals/[slug]`). Hidden from the public nav. Mods author a BlockNote body, then a vote form (text / single-select / multi-select) that locks after first save. Allowlisted users vote once; optional anonymity (members see “Anonymous”, mods always see identity). After publish: blog still editable, Close stops votes, Delete removes the proposal. Admin click on a live row opens stats. **Phase 2.5 done.** |
 | Gallery | Public `/gallery` — date-grouped masonry. Allowlisted users post instantly from `/admin/gallery`. Files live in Cloudflare R2 (presigned PUT). **Phase 8 done.** |
@@ -117,8 +116,8 @@ Map shadcn `--primary` to this maroon.
 | Role | Who | Can do |
 | --- | --- | --- |
 | Anonymous | Public | Read home, directory, profiles, published blogs, FAQ, **gallery**. No Proposals nav link; `/proposals` requires sign-in + allowlist |
-| `STUDENT` | Allowlisted email, linked to a `Student` | `/admin`: edit **own** profile + resources; create/edit **own** blogs; submit for review. Vote on `/proposals`. Post to `/gallery` from Studio. **Cannot** open Access, admin Directory, or admin Proposals |
-| `SUPER_ADMIN` (mod) | `SUPER_ADMIN_EMAILS` and/or `AllowedEmail.role = SUPER_ADMIN` | Everything a student can, plus Access allowlist, admin Directory of sign-ups, proposal authoring/stats, edit any profile, review queue |
+| `STUDENT` | Allowlisted email, linked to a `Student` | `/admin`: edit **own** profile + resources; create/edit/publish **own** blogs from `/blogs/mine`. Vote on `/proposals`. Post to `/gallery` from Studio. **Cannot** open Access, admin Directory, or admin Proposals |
+| `SUPER_ADMIN` (mod) | `SUPER_ADMIN_EMAILS` and/or `AllowedEmail.role = SUPER_ADMIN` | Everything a student can, plus Access allowlist, admin Directory of sign-ups, proposal authoring/stats, edit any profile, star/unpublish/delete any blog |
 
 Unlinked allowlisted users (email on the list, no `Student` row yet): can sign in, see a “ask super-admin to link your profile” screen, cannot publish.
 
@@ -1045,7 +1044,7 @@ Setup: `docs/r2-setup.md`.
 | 2 Global UI & skeleton | Done (see `docs/phase-2-report.md`) — Clerk Sign in + `/me` + Gallery placeholder added after |
 | 2.5 Proposals (voting) | Done — members-only index/detail, mod authoring, freeze form, stats, close/delete |
 | 3 Directory & profiles | Not started |
-| 4 Public blogs (viewer) | Not started |
+| 4 Public blogs (viewer) | Done — self-published blogs, carousel, reactions, comments (supersedes the Phase 6 review flow) |
 | 5 Landing & dummy FAQ | Not started |
 | 6 Clerk studio, BlockNote, review | Partial — Sign in / `/me` chrome early; allowlist + studio still here |
 | 7 SEO & `iimb-ug.vasumitragajbhiye.com` | Not started |

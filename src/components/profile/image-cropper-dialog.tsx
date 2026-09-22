@@ -12,14 +12,25 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { BLOG_COVER_SPEC } from "@/lib/blogs";
 import {
   PROFILE_IMAGE_SPECS,
   type ProfileImageKind,
 } from "@/lib/profile";
 import { cn } from "@/lib/utils";
 
+export type CropKind = ProfileImageKind | "cover";
+
+const CROP_SPECS = { ...PROFILE_IMAGE_SPECS, cover: BLOG_COVER_SPEC };
+
+const CROP_TITLES: Record<CropKind, string> = {
+  avatar: "Adjust profile picture",
+  banner: "Adjust banner",
+  cover: "Adjust thumbnail",
+};
+
 type Props = {
-  kind: ProfileImageKind;
+  kind: CropKind;
   file: File | null;
   onCancel: () => void;
   onConfirm: (blob: Blob) => void;
@@ -51,7 +62,7 @@ function CropperBody({
   onCancel,
   onConfirm,
 }: Props & { file: File }) {
-  const spec = PROFILE_IMAGE_SPECS[kind];
+  const spec = CROP_SPECS[kind];
   const isAvatar = kind === "avatar";
 
   // Revoked once the <img> has decoded; the loaded bitmap stays drawable.
@@ -160,7 +171,7 @@ function CropperBody({
   return (
     <>
       <DialogHeader>
-        <DialogTitle>{isAvatar ? "Adjust profile picture" : "Adjust banner"}</DialogTitle>
+        <DialogTitle>{CROP_TITLES[kind]}</DialogTitle>
         <DialogDescription>
           Drag to reposition, use the slider to zoom.
         </DialogDescription>
@@ -178,7 +189,11 @@ function CropperBody({
         onKeyDown={onKeyDown}
         className={cn(
           "relative mx-auto w-full touch-none select-none overflow-hidden rounded-lg bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-          isAvatar ? "aspect-square max-w-72" : "aspect-3/1",
+          isAvatar
+            ? "aspect-square max-w-72"
+            : kind === "cover"
+              ? "aspect-video"
+              : "aspect-3/1",
           "cursor-grab active:cursor-grabbing",
         )}
       >

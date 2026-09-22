@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState, useTransition } from "react";
 import { Check, Copy, ExternalLink, Lock, Sparkles } from "lucide-react";
 import { toast } from "sonner";
@@ -53,6 +54,8 @@ type Props = {
   email: string;
   isMod: boolean;
   siteHost: string;
+  /** Same-site path to return to after the first successful save. */
+  returnTo?: string | null;
 };
 
 const selectClassName =
@@ -66,7 +69,9 @@ export function StudentProfileEditor({
   email,
   isMod,
   siteHost,
+  returnTo,
 }: Props) {
+  const router = useRouter();
   const [saved, setSaved] = useState(initial);
   const [values, setValues] = useState(initial);
   const [live, setLive] = useState(hasProfile);
@@ -163,6 +168,7 @@ export function StudentProfileEditor({
       setLive(true);
       setErrors({});
       toast.success("Profile saved");
+      if (returnTo) router.push(returnTo);
     });
   }
 

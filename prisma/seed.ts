@@ -227,7 +227,6 @@ async function main() {
       tags: ["batch", "community"],
       status: PostStatus.PUBLISHED,
       publishedAt: new Date("2026-08-01T10:00:00.000Z"),
-      submittedAt: new Date("2026-07-28T10:00:00.000Z"),
       authorId: aisha.id,
     },
     {
@@ -240,7 +239,6 @@ async function main() {
       tags: ["campus", "life"],
       status: PostStatus.PUBLISHED,
       publishedAt: new Date("2026-08-10T10:00:00.000Z"),
-      submittedAt: new Date("2026-08-08T10:00:00.000Z"),
       authorId: kabir.id,
     },
     {
@@ -251,9 +249,8 @@ async function main() {
         "Start with lists and dictionaries, then move to pandas. Ignore the rest until you need it.",
       ),
       tags: ["data-science", "learning"],
-      status: PostStatus.IN_REVIEW,
+      status: PostStatus.DRAFT,
       publishedAt: null,
-      submittedAt: new Date("2026-08-20T10:00:00.000Z"),
       authorId: rohan.id,
     },
     {
@@ -266,7 +263,6 @@ async function main() {
       tags: ["economics", "books"],
       status: PostStatus.DRAFT,
       publishedAt: null,
-      submittedAt: null,
       authorId: sara.id,
     },
   ];
@@ -281,7 +277,6 @@ async function main() {
         tags: [...blog.tags],
         status: blog.status,
         publishedAt: blog.publishedAt,
-        submittedAt: blog.submittedAt,
         authorId: blog.authorId,
       },
       create: {
@@ -292,7 +287,6 @@ async function main() {
         tags: [...blog.tags],
         status: blog.status,
         publishedAt: blog.publishedAt,
-        submittedAt: blog.submittedAt,
         authorId: blog.authorId,
       },
     });
