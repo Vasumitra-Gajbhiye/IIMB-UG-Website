@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, Trash2 } from "lucide-react";
+import { Eye, Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -23,6 +23,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { AddCategoryDialog } from "@/components/faq/add-category-dialog";
 import { AddFaqDialog } from "@/components/faq/add-faq-dialog";
 import { SortableFaqs } from "@/components/faq/sortable-faq-list";
 import { deleteFaq, deleteFaqCategory, updateFaq } from "@/lib/actions/faq";
@@ -155,13 +156,16 @@ function ConfirmDeleteDialog({
 }
 
 export function FaqList({ categories, canPost, isMod, signedIn, currentUserId }: Props) {
+  const [editMode, setEditMode] = useState(false);
   const [editing, setEditing] = useState<FaqItem | null>(null);
   const [deletingFaq, setDeletingFaq] = useState<FaqItem | null>(null);
   const [deletingCategory, setDeletingCategory] = useState<FaqCategoryGroup | null>(null);
 
+  const canEdit = editMode && canPost;
   const canManageFaq = (faq: FaqItem) =>
-    isMod || (currentUserId !== null && faq.authorId === currentUserId);
+    canEdit && (isMod || (currentUserId !== null && faq.authorId === currentUserId));
   const canDeleteCategory = (c: FaqCategoryGroup) =>
+    canEdit &&
     !c.isDefault &&
     (isMod || (currentUserId !== null && c.createdById === currentUserId && c.faqs.length === 0));
 
@@ -170,19 +174,35 @@ export function FaqList({ categories, canPost, isMod, signedIn, currentUserId }:
       <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
         <p className="text-muted-foreground">
           Questions from the batch, answered by the batch.
-          {isMod && " Drag the handles to reorder FAQs within a category."}
+          {canEdit && isMod && " Drag the handles to reorder FAQs within a category."}
         </p>
-        {canPost ? (
-          <AddFaqDialog categories={categories} />
-        ) : signedIn ? (
-          <p className="text-sm text-muted-foreground">
-            Only approved students can add FAQs.
-          </p>
-        ) : (
-          <Button asChild variant="outline">
-            <Link href="/sign-in">Sign in to add an FAQ</Link>
-          </Button>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {canPost && canEdit && (
+            <>
+              <AddCategoryDialog />
+              <AddFaqDialog categories={categories} />
+            </>
+          )}
+          {canPost ? (
+            <Button
+              variant="outline"
+              size="icon"
+              aria-label={canEdit ? "Switch to read-only view" : "Switch to edit view"}
+              aria-pressed={canEdit}
+              onClick={() => setEditMode((v) => !v)}
+            >
+              {canEdit ? <Eye className="size-4" /> : <Pencil className="size-4" />}
+            </Button>
+          ) : signedIn ? (
+            <p className="text-sm text-muted-foreground">
+              Only approved students can add FAQs.
+            </p>
+          ) : (
+            <Button asChild variant="outline">
+              <Link href="/sign-in">Sign in to add an FAQ</Link>
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="mt-8 space-y-10">
@@ -214,7 +234,7 @@ export function FaqList({ categories, canPost, isMod, signedIn, currentUserId }:
                 <SortableFaqs
                   categoryId={category.id}
                   items={category.faqs}
-                  canReorder={isMod && category.faqs.length > 1}
+                  canReorder={canEdit && isMod && category.faqs.length > 1}
                   renderItem={(faq) => (
                     <AccordionItem value={faq.id} className="border-b-0">
                       <AccordionTrigger className="text-base">
