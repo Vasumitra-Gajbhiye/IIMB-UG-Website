@@ -39,25 +39,59 @@ enum ProposalFieldType {
   MULTI_SELECT
 }
 
+enum ApplicantType {
+  ASPIRANT
+  ADMITTED_STUDENT
+}
+
+enum ApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model User {
-  id        String   @id @default(uuid())
-  clerkId   String   @unique
-  email     String   @unique
-  name      String?
-  testYear  Int?
-  role      Role     @default(STUDENT)
-  studentId String?  @unique
-  student   Student? @relation(fields: [studentId], references: [id], onDelete: SetNull)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  authoredProposals Proposal[] @relation("ProposalAuthor")
-  votes             ProposalVote[]
-  galleryPosts      GalleryPost[]
-  galleryAlbums     GalleryAlbum[]
-  faqs              Faq[]          @relation("FaqAuthor")
-  faqCategories     FaqCategory[]  @relation("FaqCategoryCreator")
-  blogReactions     BlogReaction[]
-  blogComments      BlogComment[]
+  id                   String               @id @default(uuid())
+  clerkId              String               @unique
+  email                String               @unique
+  name                 String?
+  testYear             Int?
+  role                 Role                 @default(STUDENT)
+  studentId            String?              @unique
+  student              Student?             @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  onboardingCompleted  Boolean              @default(false)
+  applicantType        ApplicantType?
+  application          StudentApplication?  @relation("Applicant")
+  reviewedApplications StudentApplication[] @relation("ApplicationReviewer")
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  authoredProposals    Proposal[]           @relation("ProposalAuthor")
+  votes                ProposalVote[]
+  galleryPosts         GalleryPost[]
+  galleryAlbums        GalleryAlbum[]
+  faqs                 Faq[]                @relation("FaqAuthor")
+  faqCategories        FaqCategory[]        @relation("FaqCategoryCreator")
+  blogReactions        BlogReaction[]
+  blogComments         BlogComment[]
+}
+
+model StudentApplication {
+  id           String            @id @default(uuid())
+  userId       String            @unique
+  user         User              @relation("Applicant", fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  rollNumber   String
+  batch        Int
+  track        Track
+  status       ApplicationStatus @default(PENDING)
+  reviewedById String?
+  reviewedBy   User?             @relation("ApplicationReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt   DateTime?
+  rejectReason String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@index([status, createdAt])
 }
 
 model AllowedEmail {
@@ -69,12 +103,12 @@ model AllowedEmail {
 }
 
 model Student {
-  id             String   @id @default(uuid())
-  slug           String   @unique
+  id             String     @id @default(uuid())
+  slug           String     @unique
   name           String
   track          Track
   batch          Int?
-  bio            String?  @db.Text
+  bio            String?    @db.Text
   avatarUrl      String?
   bannerUrl      String?
   hometown       String?
@@ -84,10 +118,11 @@ model Student {
   twitterUrl     String?
   instagramUrl   String?
   websiteUrl     String?
-  email          String?  @unique
-  isListed       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  email          String?    @unique
+  rollNumber     String?    @unique
+  isListed       Boolean    @default(true)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
   blogs          Blog[]
   resources      Resource[]
   user           User?
@@ -189,36 +224,36 @@ model Faq {
 }
 
 model Proposal {
-  id          String         @id @default(uuid())
-  slug        String         @unique
-  title       String         @default("Untitled")
-  content     Json           @default("[]")
-  status      ProposalStatus @default(DRAFT)
+  id          String          @id @default(uuid())
+  slug        String          @unique
+  title       String          @default("Untitled")
+  content     Json            @default("[]")
+  status      ProposalStatus  @default(DRAFT)
   formSavedAt DateTime?
   publishedAt DateTime?
   closedAt    DateTime?
   closesAt    DateTime?
   createdById String
-  createdBy   User           @relation("ProposalAuthor", fields: [createdById], references: [id], onDelete: Restrict)
+  createdBy   User            @relation("ProposalAuthor", fields: [createdById], references: [id], onDelete: Restrict)
   fields      ProposalField[]
   votes       ProposalVote[]
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
 
   @@index([status, publishedAt])
   @@index([createdById])
 }
 
 model ProposalField {
-  id         String             @id @default(uuid())
+  id         String            @id @default(uuid())
   proposalId String
-  proposal   Proposal           @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  proposal   Proposal          @relation(fields: [proposalId], references: [id], onDelete: Cascade)
   label      String
   type       ProposalFieldType
   options    String[]
-  sortOrder  Int                @default(0)
-  createdAt  DateTime           @default(now())
-  updatedAt  DateTime           @updatedAt
+  sortOrder  Int               @default(0)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
 
   @@index([proposalId, sortOrder])
 }

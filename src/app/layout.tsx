@@ -1,11 +1,17 @@
 import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
+import { auth } from "@clerk/nextjs/server";
 import { Geist, Geist_Mono, Source_Serif_4 } from "next/font/google";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 
 import { SiteShell } from "@/components/layout/site-shell";
 import { SITE_NAME, SITE_TAGLINE } from "@/lib/constants";
+import { hasCompletedOnboarding } from "@/lib/auth";
 
 import "./globals.css";
+
+const ONBOARDING_EXEMPT_PREFIXES = ["/onboarding", "/sign-in", "/api"];
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -33,7 +39,16 @@ export const metadata: Metadata = {
   description: SITE_TAGLINE,
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const { userId } = await auth();
+  if (userId) {
+    const pathname = (await headers()).get("x-pathname") ?? "";
+    const exempt = ONBOARDING_EXEMPT_PREFIXES.some((p) => pathname.startsWith(p));
+    if (!exempt && !(await hasCompletedOnboarding(userId))) {
+      redirect("/onboarding");
+    }
+  }
+
   return (
     <ClerkProvider>
       <html

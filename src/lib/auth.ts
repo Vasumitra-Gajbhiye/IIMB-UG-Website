@@ -13,6 +13,7 @@ export type SessionUser = {
   studentId: string | null;
   isMod: boolean;
   isAllowlisted: boolean;
+  onboardingCompleted: boolean;
 };
 
 function primaryEmailFromClerk(user: {
@@ -119,7 +120,22 @@ export async function ensureUser(): Promise<SessionUser | null> {
     studentId: user.studentId,
     isMod: user.role === Role.SUPER_ADMIN || isSuperAdminEmail(email),
     isAllowlisted: allowlisted,
+    onboardingCompleted: user.onboardingCompleted,
   };
+}
+
+/**
+ * Cheap onboarding-completion check for the root layout's gate — a single
+ * indexed column read, no other joins. A missing row (first request can
+ * race the webhook/ensureUser sync) counts as "not onboarded": the gate
+ * sends them to /onboarding, whose page calls ensureUser() to create it.
+ */
+export async function hasCompletedOnboarding(clerkId: string): Promise<boolean> {
+  const user = await prisma.user.findUnique({
+    where: { clerkId },
+    select: { onboardingCompleted: true },
+  });
+  return user?.onboardingCompleted ?? false;
 }
 
 /**

@@ -3,6 +3,7 @@ export const BIO_MAX_LENGTH = 280;
 export const SLUG_MIN_LENGTH = 3;
 export const SLUG_MAX_LENGTH = 40;
 export const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
+export const ROLL_NUMBER_MAX_LENGTH = 32;
 
 export const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 export const BANNER_MAX_BYTES = 8 * 1024 * 1024;

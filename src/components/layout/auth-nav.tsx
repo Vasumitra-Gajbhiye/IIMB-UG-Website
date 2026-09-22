@@ -21,7 +21,7 @@ export function AuthNav() {
 
   if (!isSignedIn) {
     return (
-      <SignInButton mode="redirect" forceRedirectUrl="/me">
+      <SignInButton mode="redirect" forceRedirectUrl="/onboarding">
         <Button variant="outline" size="sm">
           Sign in
         </Button>

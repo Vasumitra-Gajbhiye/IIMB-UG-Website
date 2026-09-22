@@ -3,7 +3,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
 
+import { ApplicationStatusCard } from "@/components/profile/application-status-card";
 import { GuestProfileForm } from "@/components/profile/guest-profile-form";
+import { ResetOnboardingButton } from "@/components/profile/reset-onboarding-button";
 import {
   StudentProfileEditor,
   type StudentProfileValues,
@@ -41,13 +43,16 @@ export default async function MePage({
   const next = safeNext((await searchParams).next);
   const session = await ensureUser();
   if (!session) redirect("/sign-in");
+  if (!session.onboardingCompleted) redirect("/onboarding");
 
   let body: React.ReactNode;
+  let rollNumber: string | null = null;
 
   if (session.isAllowlisted) {
     const student = await prisma.student.findUnique({
       where: { email: session.email },
     });
+    rollNumber = student?.rollNumber ?? null;
     const initial: StudentProfileValues = {
       name: student?.name ?? "",
       track: student?.track ?? "",
@@ -71,23 +76,43 @@ export default async function MePage({
       />
     );
   } else {
-    const user = await prisma.user.findUnique({
-      where: { id: session.id },
-      select: { name: true, testYear: true },
+    const application = await prisma.studentApplication.findUnique({
+      where: { userId: session.id },
     });
-    const years = testYearOptions();
-    body = (
-      <GuestProfileForm
-        initialName={user?.name ?? ""}
-        initialTestYear={user?.testYear ?? null}
-        testYears={
-          user?.testYear && !years.includes(user.testYear)
-            ? [user.testYear, ...years]
-            : years
-        }
-        email={session.email}
-      />
-    );
+
+    if (application && application.status !== "APPROVED") {
+      body = (
+        <ApplicationStatusCard
+          application={{
+            status: application.status,
+            name: application.name,
+            rollNumber: application.rollNumber,
+            batch: application.batch,
+            track: application.track,
+            rejectReason: application.rejectReason,
+          }}
+          email={session.email}
+        />
+      );
+    } else {
+      const user = await prisma.user.findUnique({
+        where: { id: session.id },
+        select: { name: true, testYear: true },
+      });
+      const years = testYearOptions();
+      body = (
+        <GuestProfileForm
+          initialName={user?.name ?? ""}
+          initialTestYear={user?.testYear ?? null}
+          testYears={
+            user?.testYear && !years.includes(user.testYear)
+              ? [user.testYear, ...years]
+              : years
+          }
+          email={session.email}
+        />
+      );
+    }
   }
 
   return (
@@ -106,8 +131,16 @@ export default async function MePage({
             </Link>
           ) : null}
         </div>
-        <UserButton />
+        <div className="flex items-center gap-3">
+          {session.isMod ? <ResetOnboardingButton /> : null}
+          <UserButton />
+        </div>
       </div>
+      {rollNumber ? (
+        <p className="mb-4 text-sm text-muted-foreground">
+          Roll number: <span className="font-medium text-foreground">{rollNumber}</span>
+        </p>
+      ) : null}
       {body}
     </div>
   );
